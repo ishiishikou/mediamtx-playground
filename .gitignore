@@ -1,0 +1,44 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
+auth.json
+secrets/
+certs/
+
+# local configs
+docker-compose.override.yml
+mediamtx.local.yml
+*.local.yml
+
+# media / logs
+recordings/
+captures/
+videos/
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.ts
+*.m3u8
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# temporary files
+tmp/
+temp/
+.cache/

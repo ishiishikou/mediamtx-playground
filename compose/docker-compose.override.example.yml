@@ -1,0 +1,17 @@
+# Copy this file to docker-compose.override.yml for local-only changes.
+# docker-compose.override.yml is ignored by Git.
+
+services:
+  mediamtx:
+    # Example: use a local-only config file containing private IPs or credentials.
+    # volumes:
+    #   - ../configs/mediamtx.local.yml:/mediamtx.yml:ro
+
+    # Example: expose WebRTC on a LAN host during local mobile testing.
+    # ports:
+    #   - "8889:8889"
+    #   - "8189:8189/udp"
+
+    # Example: enable debug logging without changing committed config.
+    # environment:
+    #   MTX_LOGLEVEL: debug

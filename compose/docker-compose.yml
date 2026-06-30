@@ -1,0 +1,18 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: mediamtx-playground
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - ../configs/mediamtx.example.yml:/mediamtx.yml:ro
+      - ../recordings:/recordings
+    ports:
+      - "8554:8554"       # RTSP
+      - "1935:1935"       # RTMP
+      - "8888:8888"       # HLS
+      - "8889:8889"       # WebRTC HTTP signaling
+      - "8189:8189/udp"   # WebRTC ICE UDP
+      - "9997:9997"       # Control API
+      - "9998:9998"       # Prometheus metrics
