@@ -7,6 +7,7 @@ OUTPUT_DIR="${POC_OUTPUT_DIR:-${ROOT_DIR}/tmp/poc-output}"
 PATH_NAME="live/smoke-$(date +%s)"
 PUBLISH_DURATION="${PUBLISH_DURATION:-18}"
 RECORD_DURATION="${RECORD_DURATION:-6}"
+MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-20}"
 START_MEDIAMTX="${POC_START_MEDIAMTX:-1}"
 STOP_MEDIAMTX="${POC_STOP_MEDIAMTX:-0}"
 
@@ -17,6 +18,28 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "ffmpeg is required." >&2
   exit 1
 fi
+
+wait_for_api() {
+  local start_epoch now_epoch elapsed
+  start_epoch="$(date +%s)"
+
+  echo "Waiting for MediaMTX Control API..." >&2
+  while true; do
+    if bash scripts/poc/api.sh /v3/paths/list >/dev/null 2>&1; then
+      echo "MediaMTX Control API is ready." >&2
+      return 0
+    fi
+
+    now_epoch="$(date +%s)"
+    elapsed="$((now_epoch - start_epoch))"
+    if (( elapsed >= MAX_WAIT_SECONDS )); then
+      echo "MediaMTX Control API was not ready within ${MAX_WAIT_SECONDS}s." >&2
+      return 1
+    fi
+
+    sleep 1
+  done
+}
 
 if [[ "${START_MEDIAMTX}" == "1" ]]; then
   if ! command -v docker >/dev/null 2>&1; then
@@ -45,7 +68,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-sleep 3
+wait_for_api
 
 echo "Initial paths:" >&2
 bash scripts/poc/api.sh /v3/paths/list | tee "${OUTPUT_DIR}/paths-initial.json"
