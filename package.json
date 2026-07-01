@@ -1,0 +1,11 @@
+{
+  "name": "mediamtx-playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:webrtc-publish": "node scripts/poc/check-webrtc-publish.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.53.0"
+  }
+}
