@@ -79,7 +79,7 @@ try {
       });
     });
 
-    const endpoint = `${webRtcBase}/${pathName}/whip?user=${encodeURIComponent(publishUser)}&pass=${encodeURIComponent(publishPass)}`;
+    const endpoint = `${webRtcBase}/${pathName}/whip?user=${encodeURIComponent(publishUser)}&password=${encodeURIComponent(publishPass)}`;
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/sdp' },
