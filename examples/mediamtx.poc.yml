@@ -1,0 +1,69 @@
+# MediaMTX PoC configuration.
+#
+# This file is safe for a public repository because it contains only example
+# credentials for local testing. Do not reuse these values in shared, company,
+# staging, or production environments.
+
+logLevel: info
+
+# Control API.
+# In docker-compose, this is bound to 127.0.0.1 only.
+api: yes
+apiAddress: :9997
+
+# Protocol listeners used by the PoC.
+rtsp: yes
+rtspAddress: :8554
+
+rtmp: yes
+rtmpAddress: :1935
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: false
+hlsVariant: lowLatency
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+
+# Local PoC authentication.
+# Replace this with Argon2id hashes, HTTP auth, or JWT before any shared use.
+authMethod: internal
+authInternalUsers:
+  - user: poc-publisher
+    pass: poc-publisher-pass
+    ips: []
+    permissions:
+      - action: publish
+        path: "~^live/.+$"
+
+  - user: poc-viewer
+    pass: poc-viewer-pass
+    ips: []
+    permissions:
+      - action: read
+        path: "~^live/.+$"
+      - action: playback
+        path: "~^live/.+$"
+
+  # Keep Control API available only from inside the container / localhost binding.
+  - user: any
+    pass:
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: api
+
+pathDefaults:
+  source: publisher
+
+paths:
+  "~^live/.+$":
+    source: publisher
+    runOnReady: /hooks/log-ready.sh
+    runOnReadyRestart: no
+    runOnNotReady: /hooks/log-not-ready.sh
+
+  all_others:

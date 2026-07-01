@@ -1,0 +1,15 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    container_name: mediamtx-poc
+    restart: unless-stopped
+    volumes:
+      - ./mediamtx.poc.yml:/mediamtx.yml:ro
+      - ../scripts/poc/hooks:/hooks:ro
+    ports:
+      - "8554:8554"
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+      - "127.0.0.1:9997:9997"
