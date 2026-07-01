@@ -19,7 +19,7 @@ READERS_PER_STREAM="${LOAD_READERS_PER_STREAM:-0}"
 START_SPACING="${LOAD_START_SPACING:-0.2}"
 START_MEDIAMTX="${LOAD_START_MEDIAMTX:-1}"
 STOP_MEDIAMTX="${LOAD_STOP_MEDIAMTX:-0}"
-DOCKER_STATS="${LOAD_DOCKER_STATS:-auto}"
+DOCKER_STATS="${LOAD_DOCKER_STATS:-0}"
 
 API_BASE="${MTX_API_URL:-http://127.0.0.1:9997}"
 METRICS_BASE="${MTX_METRICS_URL:-http://127.0.0.1:9998}"
@@ -55,7 +55,7 @@ need jq
 need ffmpeg
 
 use_docker_stats() {
-  if [[ "${DOCKER_STATS}" == "0" || "${DOCKER_STATS}" == "false" || "${DOCKER_STATS}" == "no" ]]; then
+  if [[ "${DOCKER_STATS}" != "1" && "${DOCKER_STATS}" != "true" && "${DOCKER_STATS}" != "yes" ]]; then
     return 1
   fi
   if ! command -v docker >/dev/null 2>&1; then
