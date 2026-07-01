@@ -19,10 +19,14 @@ on:
         description: "publisher 実装。候補: ffmpeg gstreamer"
         required: true
         default: "ffmpeg"
-      repeats:
-        description: "繰り返し番号。例: 1 または 1 2 3"
+      repeat_count:
+        description: "同じ条件を何回測るか。例: 1, 2, 3"
         required: true
         default: "1"
+      only_case_ids:
+        description: "特定 case だけ再実行する場合の case_id。複数可。通常は空欄"
+        required: false
+        default: ""
       duration:
         description: "各 case の測定秒数"
         required: true
@@ -68,7 +72,8 @@ jobs:
           LOAD_PROFILES: ${{ inputs.profiles }}
           LOAD_MODES: ${{ inputs.modes }}
           LOAD_PUBLISHERS: ${{ inputs.publishers }}
-          LOAD_REPEATS: ${{ inputs.repeats }}
+          LOAD_REPEAT_COUNT: ${{ inputs.repeat_count }}
+          LOAD_ONLY_CASE_IDS: ${{ inputs.only_case_ids }}
           LOAD_DURATION: ${{ inputs.duration }}
           LOAD_SAMPLE_INTERVAL: ${{ inputs.sample_interval }}
           LOAD_READERS_PER_STREAM: ${{ inputs.readers_per_stream }}
