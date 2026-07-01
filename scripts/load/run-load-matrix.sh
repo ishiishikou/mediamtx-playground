@@ -11,7 +11,8 @@ COUNTS="${LOAD_COUNTS:-1 5 10 20}"
 PROFILES="${LOAD_PROFILES:-low medium high}"
 MODES="${LOAD_MODES:-copy}"
 PUBLISHERS="${LOAD_PUBLISHERS:-ffmpeg}"
-REPEATS="${LOAD_REPEATS:-1}"
+REPEAT_COUNT="${LOAD_REPEAT_COUNT:-1}"
+ONLY_CASE_IDS="${LOAD_ONLY_CASE_IDS:-}"
 DURATION="${LOAD_DURATION:-60}"
 SAMPLE_INTERVAL="${LOAD_SAMPLE_INTERVAL:-5}"
 READERS_PER_STREAM="${LOAD_READERS_PER_STREAM:-0}"
@@ -27,6 +28,16 @@ PUBLISH_USER="${MTX_PUBLISH_USER:-poc-publisher}"
 PUBLISH_PASS="${MTX_PUBLISH_PASS:-poc-publisher-pass}"
 READ_USER="${MTX_READ_USER:-poc-viewer}"
 READ_PASS="${MTX_READ_PASS:-poc-viewer-pass}"
+
+if [[ -n "${LOAD_REPEATS:-}" ]]; then
+  echo "LOAD_REPEATS is no longer supported. Use LOAD_REPEAT_COUNT=3 for three repeats." >&2
+  exit 1
+fi
+
+if [[ ! "${REPEAT_COUNT}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "LOAD_REPEAT_COUNT must be a positive integer: ${REPEAT_COUNT}" >&2
+  exit 1
+fi
 
 mkdir -p "${OUT_DIR}/cases" "${OUT_DIR}/logs" "${OUT_DIR}/metrics"
 
@@ -76,6 +87,28 @@ profile_bitrate_kbps() {
     high) echo "3000" ;;
     *) echo "unknown profile: $1" >&2; exit 1 ;;
   esac
+}
+
+case_id_for() {
+  local publisher="$1" profile="$2" mode="$3" stream_count="$4" repeat="$5"
+  echo "${publisher}_${profile}_${mode}_${stream_count}s_${READERS_PER_STREAM}r_rep${repeat}"
+}
+
+case_selected() {
+  local case_id="$1"
+  local selected
+
+  if [[ -z "${ONLY_CASE_IDS}" ]]; then
+    return 0
+  fi
+
+  for selected in ${ONLY_CASE_IDS}; do
+    if [[ "${selected}" == "${case_id}" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 publish_url() {
@@ -212,14 +245,20 @@ run_case() {
   local -a reader_pids=()
   local i r path_name
 
-  case_id="${publisher}_${profile}_${mode}_${stream_count}s_${READERS_PER_STREAM}r_rep${repeat}"
+  case_id="$(case_id_for "${publisher}" "${profile}" "${mode}" "${stream_count}" "${repeat}")"
+
+  if ! case_selected "${case_id}"; then
+    echo "case skip: ${case_id}"
+    return 0
+  fi
+
   case_dir="${OUT_DIR}/cases/${case_id}"
   sample_csv="${case_dir}/samples.csv"
   meta_file="${case_dir}/case.json"
   mkdir -p "${case_dir}/publishers" "${case_dir}/readers"
 
   cat > "${meta_file}" <<JSON
-{"case_id":"${case_id}","publisher":"${publisher}","profile":"${profile}","mode":"${mode}","streams":${stream_count},"readers_per_stream":${READERS_PER_STREAM},"repeat":${repeat},"duration_sec":${DURATION},"sample_interval_sec":${SAMPLE_INTERVAL}}
+{"case_id":"${case_id}","publisher":"${publisher}","profile":"${profile}","mode":"${mode}","streams":${stream_count},"readers_per_stream":${READERS_PER_STREAM},"repeat":${repeat},"repeat_count":${REPEAT_COUNT},"duration_sec":${DURATION},"sample_interval_sec":${SAMPLE_INTERVAL}}
 JSON
 
   echo "case start: ${case_id}"
@@ -229,15 +268,17 @@ JSON
   for i in $(seq 1 "${stream_count}"); do
     path_name="live/load-${case_id}-${i}"
     if [[ "${publisher}" == "ffmpeg" ]]; then
-      start_ffmpeg_publisher "${mode}" "${profile}" "${path_name}" "${case_dir}/publishers/${i}.log" || true
+      start_ffmpeg_publisher "${mode}" "${profile}" "${path_name}" "${case_dir}/publishers/${i}.log"
+      publisher_pids+=("$!")
     elif [[ "${publisher}" == "gstreamer" ]]; then
-      start_gstreamer_publisher "${mode}" "${profile}" "${path_name}" "${case_dir}/publishers/${i}.log" || true
+      if start_gstreamer_publisher "${mode}" "${profile}" "${path_name}" "${case_dir}/publishers/${i}.log"; then
+        publisher_pids+=("$!")
+      fi
     else
       echo "unknown publisher: ${publisher}" >&2
       kill "${collector_pid}" >/dev/null 2>&1 || true
       return 2
     fi
-    publisher_pids+=("$!")
     sleep "${START_SPACING}"
   done
 
@@ -288,22 +329,23 @@ LOAD_COUNTS=${COUNTS}
 LOAD_PROFILES=${PROFILES}
 LOAD_MODES=${MODES}
 LOAD_PUBLISHERS=${PUBLISHERS}
-LOAD_REPEATS=${REPEATS}
+LOAD_REPEAT_COUNT=${REPEAT_COUNT}
+LOAD_ONLY_CASE_IDS=${ONLY_CASE_IDS}
 LOAD_DURATION=${DURATION}
 LOAD_SAMPLE_INTERVAL=${SAMPLE_INTERVAL}
 LOAD_READERS_PER_STREAM=${READERS_PER_STREAM}
 LOAD_START_SPACING=${START_SPACING}
 EOF
 
-for repeat in ${REPEATS}; do
-  for publisher in ${PUBLISHERS}; do
-    for profile in ${PROFILES}; do
-      for mode in ${MODES}; do
-        if [[ "${publisher}" == "gstreamer" && "${mode}" != "encode" ]]; then
-          echo "skip: publisher=gstreamer mode=${mode} is unsupported"
-          continue
-        fi
-        for stream_count in ${COUNTS}; do
+for publisher in ${PUBLISHERS}; do
+  for profile in ${PROFILES}; do
+    for mode in ${MODES}; do
+      if [[ "${publisher}" == "gstreamer" && "${mode}" != "encode" ]]; then
+        echo "skip: publisher=gstreamer mode=${mode} is unsupported"
+        continue
+      fi
+      for stream_count in ${COUNTS}; do
+        for repeat in $(seq 1 "${REPEAT_COUNT}"); do
           run_case "${publisher}" "${profile}" "${mode}" "${stream_count}" "${repeat}"
         done
       done
