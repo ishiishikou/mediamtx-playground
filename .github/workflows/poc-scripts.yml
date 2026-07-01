@@ -8,6 +8,8 @@ on:
       - "examples/mediamtx.poc.yml"
       - "scripts/poc/**"
       - "docs/poc-verification.md"
+      - "docs/poc-github-actions.md"
+      - "package.json"
   push:
     branches:
       - "ci/poc-scripts-github-actions"
@@ -17,6 +19,8 @@ on:
       - "examples/mediamtx.poc.yml"
       - "scripts/poc/**"
       - "docs/poc-verification.md"
+      - "docs/poc-github-actions.md"
+      - "package.json"
   workflow_dispatch:
 
 permissions:
@@ -26,7 +30,7 @@ jobs:
   poc-scripts:
     name: Run PoC scripts smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -37,6 +41,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg jq curl
 
+      - name: Install Playwright
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
       - name: Show tool versions
         run: |
           docker --version
@@ -44,11 +53,14 @@ jobs:
           ffmpeg -version | head -n 1
           jq --version
           curl --version | head -n 1
+          node --version
+          npx playwright --version
 
       - name: Validate shell script syntax
         run: |
           bash -n scripts/poc/*.sh
           sh -n scripts/poc/hooks/*.sh
+          node --check scripts/poc/check-webrtc-publish.mjs
 
       - name: Validate docker compose configuration
         run: docker compose -f examples/docker-compose.poc.yml config
@@ -59,6 +71,14 @@ jobs:
           RECORD_DURATION: "4"
           MAX_WAIT_SECONDS: "20"
         run: bash scripts/poc/run-smoke.sh
+
+      - name: Start MediaMTX for WebRTC publish check
+        run: docker compose -f examples/docker-compose.poc.yml up -d
+
+      - name: Run WebRTC publish check with fake camera
+        env:
+          WEBRTC_CHECK_TIMEOUT_MS: "30000"
+        run: npm run check:webrtc-publish
 
       - name: Show MediaMTX logs
         if: always()
