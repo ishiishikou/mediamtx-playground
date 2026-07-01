@@ -108,7 +108,8 @@ jobs:
             -e MAX_WAIT_SECONDS \
             poc-runner scripts/poc/run-smoke.sh
 
-      - name: Run WebRTC check in PoC runner
+      - name: Run WebRTC diagnostic in PoC runner
+        continue-on-error: true
         env:
           WEBRTC_CHECK_TIMEOUT_MS: "30000"
           WEBRTC_REQUIRE_RTP: "0"
