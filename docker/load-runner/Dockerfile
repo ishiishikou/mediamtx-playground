@@ -26,5 +26,6 @@ RUN python -m pip install matplotlib
 WORKDIR /workspace
 
 COPY scripts ./scripts
+COPY monitoring ./monitoring
 
-CMD ["bash", "-lc", "bash scripts/load/run-load-matrix.sh && python3 scripts/load/render-load-graphs.py ${LOAD_OUTPUT_DIR:-/workspace/tmp/load-test/container}"]
+CMD ["bash", "scripts/load/run-container-load.sh"]
