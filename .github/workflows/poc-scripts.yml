@@ -4,26 +4,36 @@ on:
   pull_request:
     paths:
       - ".github/workflows/poc-scripts.yml"
+      - ".github/workflows/load-test-graphs.yml"
+      - "docker/load-runner/**"
       - "examples/docker-compose.poc.yml"
+      - "examples/docker-compose.load.yml"
       - "examples/mediamtx.poc.yml"
       - "scripts/poc/**"
       - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
       - "docs/load-test.md"
+      - "docs/container-load-test.md"
+      - "README.md"
       - "package.json"
   push:
     branches:
       - "ci/poc-scripts-github-actions"
     paths:
       - ".github/workflows/poc-scripts.yml"
+      - ".github/workflows/load-test-graphs.yml"
+      - "docker/load-runner/**"
       - "examples/docker-compose.poc.yml"
+      - "examples/docker-compose.load.yml"
       - "examples/mediamtx.poc.yml"
       - "scripts/poc/**"
       - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
       - "docs/load-test.md"
+      - "docs/container-load-test.md"
+      - "README.md"
       - "package.json"
   workflow_dispatch:
 
@@ -70,7 +80,9 @@ jobs:
           node --check scripts/poc/check-webrtc-publish.mjs
 
       - name: Validate docker compose configuration
-        run: docker compose -f examples/docker-compose.poc.yml config
+        run: |
+          docker compose -f examples/docker-compose.poc.yml config
+          docker compose -f examples/docker-compose.load.yml config
 
       - name: Run smoke test
         env:
