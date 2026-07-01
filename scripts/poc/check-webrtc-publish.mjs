@@ -6,6 +6,7 @@ const pathName = process.env.WEBRTC_PUBLISH_PATH || 'live/poc-webrtc-ci';
 const publishUser = process.env.PUBLISH_USER || 'poc-publisher';
 const publishPass = process.env.PUBLISH_PASS || 'poc-publisher-pass';
 const timeoutMs = Number(process.env.WEBRTC_CHECK_TIMEOUT_MS || '30000');
+const keepAliveMs = Number(process.env.WEBRTC_KEEP_ALIVE_MS || '0');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -112,6 +113,11 @@ try {
   const result = await waitForPublishedPath();
   console.log(`WebRTC publish confirmed: ${pathName}`);
   console.log(JSON.stringify(result, null, 2));
+
+  if (keepAliveMs > 0) {
+    console.log(`Keeping WebRTC publisher alive for ${keepAliveMs}ms`);
+    await sleep(keepAliveMs);
+  }
 } finally {
   await browser.close();
 }
