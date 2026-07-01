@@ -1,0 +1,36 @@
+# Public example configuration for local MediaMTX experiments.
+# Do not put real camera URLs, credentials, global IPs, or private hostnames here.
+
+logLevel: info
+logDestinations: [stdout]
+
+api: true
+apiAddress: :9997
+
+metrics: true
+metricsAddress: :9998
+
+rtsp: true
+rtspAddress: :8554
+rtspTransports: [tcp]
+
+rtmp: true
+rtmpAddress: :1935
+
+hls: true
+hlsAddress: :8888
+hlsAllowOrigins: ['*']
+
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+webrtcLocalUDPAddress: :8189
+# Add local-only hosts in mediamtx.local.yml when needed.
+webrtcAdditionalHosts: []
+
+paths:
+  test:
+    source: publisher
+
+  all_others:
+    source: publisher
