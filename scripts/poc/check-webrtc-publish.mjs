@@ -53,6 +53,8 @@ async function waitForPublishedPath() {
 const browser = await chromium.launch({
   headless: true,
   args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
     '--use-fake-device-for-media-stream',
     '--use-fake-ui-for-media-stream',
     '--autoplay-policy=no-user-gesture-required',
