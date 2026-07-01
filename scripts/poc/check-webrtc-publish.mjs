@@ -46,7 +46,13 @@ const browser = await chromium.launch({
 });
 
 try {
-  const context = await browser.newContext({ permissions: ['camera', 'microphone'] });
+  const context = await browser.newContext({
+    permissions: ['camera', 'microphone'],
+    httpCredentials: {
+      username: publishUser,
+      password: publishPass,
+    },
+  });
   const page = await context.newPage();
 
   page.on('console', (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
@@ -54,7 +60,7 @@ try {
 
   await page.goto(`${webRtcBase}/`, { waitUntil: 'domcontentloaded', timeout: timeoutMs }).catch(() => undefined);
 
-  const publishResult = await page.evaluate(async ({ webRtcBase, pathName, publishUser, publishPass }) => {
+  const publishResult = await page.evaluate(async ({ webRtcBase, pathName }) => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     const pc = new RTCPeerConnection();
 
@@ -79,7 +85,7 @@ try {
       });
     });
 
-    const endpoint = `${webRtcBase}/${pathName}/whip?user=${encodeURIComponent(publishUser)}&password=${encodeURIComponent(publishPass)}`;
+    const endpoint = `${webRtcBase}/${pathName}/whip`;
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/sdp' },
@@ -98,7 +104,7 @@ try {
       tracks: stream.getTracks().map((track) => `${track.kind}:${track.readyState}`),
       responseStatus: response.status,
     };
-  }, { webRtcBase, pathName, publishUser, publishPass });
+  }, { webRtcBase, pathName });
 
   console.log(`Browser media tracks: ${publishResult.tracks.join(', ')}`);
   console.log(`WHIP response status: ${publishResult.responseStatus}`);
