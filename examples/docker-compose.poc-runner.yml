@@ -6,6 +6,7 @@ services:
     environment:
       MTX_METRICS: "yes"
       MTX_METRICSADDRESS: ":9998"
+      MTX_WEBRTCADDITIONALHOSTS: mediamtx
     volumes:
       - ./mediamtx.poc.yml:/mediamtx.yml:ro
       - ../scripts/poc/hooks:/hooks:ro
