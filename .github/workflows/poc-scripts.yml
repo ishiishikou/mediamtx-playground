@@ -7,8 +7,10 @@ on:
       - "examples/docker-compose.poc.yml"
       - "examples/mediamtx.poc.yml"
       - "scripts/poc/**"
+      - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
+      - "docs/load-test.md"
       - "package.json"
   push:
     branches:
@@ -18,8 +20,10 @@ on:
       - "examples/docker-compose.poc.yml"
       - "examples/mediamtx.poc.yml"
       - "scripts/poc/**"
+      - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
+      - "docs/load-test.md"
       - "package.json"
   workflow_dispatch:
 
@@ -54,12 +58,15 @@ jobs:
           jq --version
           curl --version | head -n 1
           node --version
+          python3 --version
           npx playwright --version
 
-      - name: Validate shell script syntax
+      - name: Validate script syntax
         run: |
           bash -n scripts/poc/*.sh
           sh -n scripts/poc/hooks/*.sh
+          bash -n scripts/load/*.sh
+          python3 -m py_compile scripts/load/render-load-graphs.py
           node --check scripts/poc/check-webrtc-publish.mjs
 
       - name: Validate docker compose configuration
