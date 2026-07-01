@@ -46,14 +46,28 @@ jobs:
       - name: Start MediaMTX
         run: docker compose -f examples/docker-compose.poc.yml up -d
 
-      - name: Publish WebRTC fake camera and record one minute
+      - name: Publish WebRTC canvas video and record one minute
         run: |
+          set -euo pipefail
           mkdir -p tmp/poc-video-artifact
-          WEBRTC_KEEP_ALIVE_MS=75000 npm run check:webrtc-publish > tmp/poc-video-artifact/webrtc-publisher.log 2>&1 &
+          WEBRTC_MEDIA_SOURCE=canvas WEBRTC_REQUIRE_RTP=1 WEBRTC_KEEP_ALIVE_MS=75000 npm run check:webrtc-publish > tmp/poc-video-artifact/webrtc-publisher.log 2>&1 &
           PUBLISH_PID=$!
-          sleep 10
-          OUTPUT_DIR=tmp/poc-video-artifact bash scripts/poc/record-rtsp-head.sh live/poc-webrtc-ci 60 | tee tmp/poc-video-artifact/record.log
+          sleep 12
+          ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -rtsp_transport tcp \
+            -i "rtsp://poc-viewer:poc-viewer-pass@127.0.0.1:8554/live/poc-webrtc-ci" \
+            -t 60 \
+            -map 0:v:0 \
+            -c:v libx264 \
+            -preset veryfast \
+            -pix_fmt yuv420p \
+            -an \
+            -y \
+            tmp/poc-video-artifact/live_poc-webrtc-ci_canvas.mp4 2>&1 | tee tmp/poc-video-artifact/record.log
           wait "${PUBLISH_PID}"
+          test -s tmp/poc-video-artifact/live_poc-webrtc-ci_canvas.mp4
 
       - name: Show generated files
         if: always()
@@ -67,7 +81,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: poc-webrtc-fake-camera-recording
+          name: poc-webrtc-canvas-recording
           path: |
             tmp/poc-video-artifact/*.mp4
             tmp/poc-video-artifact/*.log
