@@ -40,6 +40,18 @@ docker compose up -d
 - Control API: `http://localhost:9997/v3/config/global/get`
 - Metrics: `http://localhost:9998/metrics`
 
+## 動的配信 PoC 検証
+
+Web アプリなどから MediaMTX に動的に配信が追加される構成について、active path、hook、HLS 遅延、Control API kick、認証境界を確認するための手順を追加しています。
+
+- [MediaMTX 動的配信 PoC 検証手順](docs/poc-verification.md)
+
+最小動作確認は以下で実行します。
+
+```bash
+bash scripts/poc/run-smoke.sh
+```
+
 ## ディレクトリ構成
 
 ```text
