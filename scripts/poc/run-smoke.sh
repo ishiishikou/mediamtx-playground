@@ -2,36 +2,45 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-COMPOSE_FILE="${ROOT_DIR}/examples/docker-compose.poc.yml"
-OUTPUT_DIR="${ROOT_DIR}/tmp/poc-output"
+COMPOSE_FILE="${POC_COMPOSE_FILE:-${ROOT_DIR}/examples/docker-compose.poc.yml}"
+OUTPUT_DIR="${POC_OUTPUT_DIR:-${ROOT_DIR}/tmp/poc-output}"
 PATH_NAME="live/smoke-$(date +%s)"
 PUBLISH_DURATION="${PUBLISH_DURATION:-18}"
 RECORD_DURATION="${RECORD_DURATION:-6}"
+START_MEDIAMTX="${POC_START_MEDIAMTX:-1}"
+STOP_MEDIAMTX="${POC_STOP_MEDIAMTX:-0}"
 
 mkdir -p "${OUTPUT_DIR}"
 cd "${ROOT_DIR}"
-
-if ! command -v docker >/dev/null 2>&1; then
-  echo "docker is required." >&2
-  exit 1
-fi
-
-if ! docker compose version >/dev/null 2>&1; then
-  echo "docker compose is required." >&2
-  exit 1
-fi
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "ffmpeg is required." >&2
   exit 1
 fi
 
-echo "Starting MediaMTX PoC container..." >&2
-docker compose -f "${COMPOSE_FILE}" up -d
+if [[ "${START_MEDIAMTX}" == "1" ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "docker is required when POC_START_MEDIAMTX=1." >&2
+    exit 1
+  fi
+
+  if ! docker compose version >/dev/null 2>&1; then
+    echo "docker compose is required when POC_START_MEDIAMTX=1." >&2
+    exit 1
+  fi
+
+  echo "Starting MediaMTX PoC container..." >&2
+  docker compose -f "${COMPOSE_FILE}" up -d
+fi
 
 cleanup() {
   if [[ -n "${PUBLISH_PID:-}" ]] && kill -0 "${PUBLISH_PID}" >/dev/null 2>&1; then
     kill "${PUBLISH_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ "${STOP_MEDIAMTX}" == "1" ]]; then
+    if command -v docker >/dev/null 2>&1; then
+      docker compose -f "${COMPOSE_FILE}" down -v >/dev/null 2>&1 || true
+    fi
   fi
 }
 trap cleanup EXIT
