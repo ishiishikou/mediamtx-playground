@@ -6,7 +6,6 @@ services:
     environment:
       MTX_METRICS: "yes"
       MTX_METRICSADDRESS: ":9998"
-      MTX_WEBRTCADDITIONALHOSTS: mediamtx
     volumes:
       - ./mediamtx.poc.yml:/mediamtx.yml:ro
       - ../scripts/poc/hooks:/hooks:ro
@@ -16,8 +15,6 @@ services:
       - "8888:8888"
       - "8889:8889"
       - "8189:8189/udp"
-      - "127.0.0.1:9997:9997"
-      - "127.0.0.1:9998:9998"
     networks:
       - pocnet
 
@@ -28,25 +25,21 @@ services:
     image: mediamtx-playground-poc-runner:local
     depends_on:
       - mediamtx
+    network_mode: service:mediamtx
     environment:
       POC_START_MEDIAMTX: "0"
       POC_STOP_MEDIAMTX: "0"
       POC_OUTPUT_DIR: /workspace/tmp/poc-output
-      MTX_API_URL: http://mediamtx:9997
-      MTX_HOST: mediamtx
+      MTX_API_URL: http://localhost:9997
+      MTX_HOST: localhost
       RTSP_PORT: "8554"
       HLS_PORT: "8888"
-      WEBRTC_BASE_URL: http://mediamtx:8889
+      WEBRTC_BASE_URL: http://localhost:8889
       WEBRTC_CHECK_TIMEOUT_MS: "30000"
       WEBRTC_MEDIA_SOURCE: canvas
       WEBRTC_REQUIRE_RTP: "1"
     volumes:
       - ../tmp:/workspace/tmp
-    networks:
-      - pocnet
 
 networks:
-  pocnet:
-    ipam:
-      config:
-        - subnet: 172.30.0.0/16
+  pocnet: {}
