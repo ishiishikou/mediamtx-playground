@@ -10,13 +10,16 @@ on:
       - "examples/docker-compose.poc.yml"
       - "examples/docker-compose.poc-runner.yml"
       - "examples/docker-compose.load.yml"
+      - "examples/docker-compose.monitoring.yml"
       - "examples/mediamtx.poc.yml"
+      - "monitoring/**"
       - "scripts/poc/**"
       - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
       - "docs/load-test.md"
       - "docs/container-load-test.md"
+      - "docs/monitoring-load-test.md"
       - "README.md"
       - "package.json"
   push:
@@ -30,13 +33,16 @@ on:
       - "examples/docker-compose.poc.yml"
       - "examples/docker-compose.poc-runner.yml"
       - "examples/docker-compose.load.yml"
+      - "examples/docker-compose.monitoring.yml"
       - "examples/mediamtx.poc.yml"
+      - "monitoring/**"
       - "scripts/poc/**"
       - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
       - "docs/load-test.md"
       - "docs/container-load-test.md"
+      - "docs/monitoring-load-test.md"
       - "README.md"
       - "package.json"
   workflow_dispatch:
@@ -64,6 +70,7 @@ jobs:
           docker compose -f examples/docker-compose.poc.yml config
           docker compose -f examples/docker-compose.poc-runner.yml config
           docker compose -f examples/docker-compose.load.yml config
+          docker compose -f examples/docker-compose.load.yml -f examples/docker-compose.monitoring.yml config
 
       - name: Build PoC runner image
         run: docker compose -f examples/docker-compose.poc-runner.yml build poc-runner
@@ -78,11 +85,13 @@ jobs:
           '
 
       - name: Build load runner image
-        run: docker compose -f examples/docker-compose.load.yml build load-runner
+        run: docker compose -f examples/docker-compose.load.yml -f examples/docker-compose.monitoring.yml build load-runner
 
-      - name: Validate load graph script in load runner
+      - name: Validate load scripts in load runner
         run: |
-          docker compose -f examples/docker-compose.load.yml run --rm --entrypoint python3 load-runner -m py_compile scripts/load/render-load-graphs.py
+          docker compose -f examples/docker-compose.load.yml -f examples/docker-compose.monitoring.yml run --rm --entrypoint python3 load-runner -m py_compile \
+            scripts/load/render-load-graphs.py \
+            scripts/load/export-prometheus-range.py
 
       - name: Start MediaMTX
         run: docker compose -f examples/docker-compose.poc-runner.yml up -d mediamtx
