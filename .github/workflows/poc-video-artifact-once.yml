@@ -1,6 +1,10 @@
 name: PoC video artifact once
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/poc-video-artifact-once.yml"
+      - "scripts/poc/check-webrtc-publish.mjs"
   push:
     branches:
       - "ci/video-artifact-check"
