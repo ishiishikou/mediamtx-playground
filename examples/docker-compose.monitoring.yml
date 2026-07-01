@@ -19,8 +19,6 @@ services:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: mediamtx-poc-cadvisor
     privileged: true
-    devices:
-      - /dev/kmsg:/dev/kmsg
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
