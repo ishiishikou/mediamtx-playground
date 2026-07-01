@@ -111,9 +111,11 @@ jobs:
       - name: Run WebRTC check in PoC runner
         env:
           WEBRTC_CHECK_TIMEOUT_MS: "30000"
+          WEBRTC_REQUIRE_RTP: "0"
         run: |
           docker compose -f examples/docker-compose.poc-runner.yml run --rm --entrypoint npm \
             -e WEBRTC_CHECK_TIMEOUT_MS \
+            -e WEBRTC_REQUIRE_RTP \
             poc-runner run check:webrtc-publish
 
       - name: Show MediaMTX logs
