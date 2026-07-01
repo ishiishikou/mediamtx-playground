@@ -14,7 +14,8 @@ MediaMTX が複数の動画 publisher を同時に受信したとき、どの程
 | profile | `low medium high` |
 | mode | `copy encode` |
 | publisher 実装 | `ffmpeg gstreamer` |
-| 繰り返し | `1`、または `1 2 3` |
+| 繰り返し回数 | `LOAD_REPEAT_COUNT=1`、`2`、`3` など |
+| 特定 case の再実行 | `LOAD_ONLY_CASE_IDS` |
 | reader 有無 | `LOAD_READERS_PER_STREAM=0` または `1` 以上 |
 | 測定時間 | `LOAD_DURATION` |
 | metrics 取得間隔 | `LOAD_SAMPLE_INTERVAL` |
@@ -78,7 +79,7 @@ http://127.0.0.1:9998/metrics
 LOAD_COUNTS="1 5" \
 LOAD_PROFILES="low" \
 LOAD_MODES="copy" \
-LOAD_REPEATS="1" \
+LOAD_REPEAT_COUNT="1" \
 LOAD_DURATION="30" \
 LOAD_SAMPLE_INTERVAL="5" \
 bash scripts/load/run-load-matrix.sh
@@ -99,7 +100,7 @@ LOAD_COUNTS="1 5 10 20 50 100" \
 LOAD_PROFILES="low medium high" \
 LOAD_MODES="copy encode" \
 LOAD_PUBLISHERS="ffmpeg" \
-LOAD_REPEATS="1" \
+LOAD_REPEAT_COUNT="1" \
 LOAD_DURATION="300" \
 LOAD_SAMPLE_INTERVAL="5" \
 bash scripts/load/run-load-matrix.sh
@@ -113,18 +114,73 @@ bash scripts/load/run-load-matrix.sh
 
 ## 3. 繰り返し測定する
 
-ばらつきを見る場合は `LOAD_REPEATS` を増やす。
+ばらつきを見る場合は `LOAD_REPEAT_COUNT` を増やす。
 
 ```bash
 LOAD_COUNTS="10 20 50" \
 LOAD_PROFILES="medium" \
 LOAD_MODES="copy" \
-LOAD_REPEATS="1 2 3" \
+LOAD_REPEAT_COUNT="3" \
 LOAD_DURATION="300" \
 bash scripts/load/run-load-matrix.sh
 ```
 
-## 4. reader ありで試す
+`LOAD_REPEAT_COUNT=3` は、各パラメーターセットを3回測るという意味。
+
+たとえば以下の場合:
+
+```bash
+LOAD_COUNTS="10" \
+LOAD_PROFILES="medium" \
+LOAD_MODES="copy encode" \
+LOAD_REPEAT_COUNT="3" \
+bash scripts/load/run-load-matrix.sh
+```
+
+実行される case は以下。
+
+| case_id | 意味 |
+|---|---|
+| `ffmpeg_medium_copy_10s_0r_rep1` | medium / copy / 10 streams の1回目 |
+| `ffmpeg_medium_copy_10s_0r_rep2` | medium / copy / 10 streams の2回目 |
+| `ffmpeg_medium_copy_10s_0r_rep3` | medium / copy / 10 streams の3回目 |
+| `ffmpeg_medium_encode_10s_0r_rep1` | medium / encode / 10 streams の1回目 |
+| `ffmpeg_medium_encode_10s_0r_rep2` | medium / encode / 10 streams の2回目 |
+| `ffmpeg_medium_encode_10s_0r_rep3` | medium / encode / 10 streams の3回目 |
+
+## 4. 特定 case だけ再実行する
+
+失敗した case だけ再確認したい場合は、`case-results.csv` または `cases/<case-id>/case.json` の `case_id` を使う。
+
+例: `ffmpeg_medium_encode_10s_0r_rep2` だけ再実行する。
+
+```bash
+LOAD_COUNTS="10" \
+LOAD_PROFILES="medium" \
+LOAD_MODES="copy encode" \
+LOAD_PUBLISHERS="ffmpeg" \
+LOAD_REPEAT_COUNT="3" \
+LOAD_ONLY_CASE_IDS="ffmpeg_medium_encode_10s_0r_rep2" \
+LOAD_DURATION="300" \
+bash scripts/load/run-load-matrix.sh
+```
+
+`LOAD_ONLY_CASE_IDS` を指定した場合、条件マトリクスの中から一致する case だけ実行する。
+
+複数 case を再実行する場合:
+
+```bash
+LOAD_ONLY_CASE_IDS="ffmpeg_medium_encode_10s_0r_rep2 ffmpeg_medium_copy_20s_0r_rep1" \
+bash scripts/load/run-load-matrix.sh
+```
+
+注意点:
+
+- `LOAD_ONLY_CASE_IDS` は完全一致
+- 元の case が生成される条件、つまり `LOAD_COUNTS` / `LOAD_PROFILES` / `LOAD_MODES` / `LOAD_PUBLISHERS` / `LOAD_REPEAT_COUNT` も含めて指定する
+- `LOAD_ONLY_CASE_IDS` だけを指定しても、元の条件マトリクスに含まれない case は実行されない
+
+## 5. reader ありで試す
 
 MediaMTX が受信するだけでなく、同時に reader へ配信する場合の負荷を見る。
 
@@ -139,7 +195,7 @@ bash scripts/load/run-load-matrix.sh
 
 `LOAD_READERS_PER_STREAM=1` は、各 stream に 1 reader を接続するという意味。
 
-## 5. GStreamer で試す
+## 6. GStreamer で試す
 
 GStreamer を使う場合は `LOAD_PUBLISHERS="gstreamer"` を指定する。
 
@@ -154,7 +210,7 @@ bash scripts/load/run-load-matrix.sh
 
 GStreamer は現時点で `encode` のみ対応する。
 
-## 6. グラフを生成する
+## 7. グラフを生成する
 
 負荷試験の出力ディレクトリを指定する。
 
@@ -180,7 +236,7 @@ tmp/load-test/<timestamp>/graphs/
 | `prometheus_selected_deltas_by_case.png` | Prometheus metrics の主な増分 |
 | `cpu_over_time.png` | CPU 時系列 |
 
-## 7. GitHub Actions で実行する
+## 8. GitHub Actions で実行する
 
 `.github/workflows/load-test-graphs.yml` は `workflow_dispatch` 専用である。push や pull request では自動実行しない。
 
@@ -198,7 +254,8 @@ Actions → MediaMTX load test graphs → Run workflow
 | profiles | `low medium` | `low medium high` |
 | modes | `copy` | `copy encode` |
 | publishers | `ffmpeg` | `ffmpeg` または `ffmpeg gstreamer` |
-| repeats | `1` | `1 2 3` |
+| repeat_count | `1` | `3` |
+| only_case_ids | 空欄 | `ffmpeg_medium_encode_10s_0r_rep2` |
 | duration | `60` | `300` 以上 |
 | sample_interval | `5` | `5` |
 | readers_per_stream | `0` | `0` または `1` |
