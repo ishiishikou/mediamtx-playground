@@ -96,19 +96,25 @@ jobs:
       - name: Start MediaMTX
         run: docker compose -f examples/docker-compose.poc-runner.yml up -d mediamtx
 
-      - name: Run smoke and WebRTC checks in PoC runner
+      - name: Run smoke check in PoC runner
         env:
           PUBLISH_DURATION: "12"
           RECORD_DURATION: "4"
           MAX_WAIT_SECONDS: "20"
-          WEBRTC_CHECK_TIMEOUT_MS: "30000"
         run: |
-          docker compose -f examples/docker-compose.poc-runner.yml run --rm \
+          docker compose -f examples/docker-compose.poc-runner.yml run --rm --entrypoint bash \
             -e PUBLISH_DURATION \
             -e RECORD_DURATION \
             -e MAX_WAIT_SECONDS \
+            poc-runner scripts/poc/run-smoke.sh
+
+      - name: Run WebRTC check in PoC runner
+        env:
+          WEBRTC_CHECK_TIMEOUT_MS: "30000"
+        run: |
+          docker compose -f examples/docker-compose.poc-runner.yml run --rm --entrypoint npm \
             -e WEBRTC_CHECK_TIMEOUT_MS \
-            poc-runner
+            poc-runner run check:webrtc-publish
 
       - name: Show MediaMTX logs
         if: always()
