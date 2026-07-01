@@ -1,0 +1,51 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    container_name: mediamtx-poc
+    restart: unless-stopped
+    environment:
+      MTX_METRICS: "yes"
+      MTX_METRICSADDRESS: ":9998"
+    volumes:
+      - ./mediamtx.poc.yml:/mediamtx.yml:ro
+      - ../scripts/poc/hooks:/hooks:ro
+    ports:
+      - "8554:8554"
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+      - "127.0.0.1:9997:9997"
+      - "127.0.0.1:9998:9998"
+    networks:
+      - pocnet
+
+  poc-runner:
+    build:
+      context: ..
+      dockerfile: docker/poc-runner/Dockerfile
+    image: mediamtx-playground-poc-runner:local
+    depends_on:
+      - mediamtx
+    environment:
+      POC_START_MEDIAMTX: "0"
+      POC_STOP_MEDIAMTX: "0"
+      POC_OUTPUT_DIR: /workspace/tmp/poc-output
+      MTX_API_URL: http://mediamtx:9997
+      MTX_HOST: mediamtx
+      RTSP_PORT: "8554"
+      HLS_PORT: "8888"
+      WEBRTC_BASE_URL: http://mediamtx:8889
+      WEBRTC_CHECK_TIMEOUT_MS: "30000"
+      WEBRTC_MEDIA_SOURCE: canvas
+      WEBRTC_REQUIRE_RTP: "1"
+    volumes:
+      - ../tmp:/workspace/tmp
+    networks:
+      - pocnet
+
+networks:
+  pocnet:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
