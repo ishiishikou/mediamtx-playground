@@ -1,8 +1,10 @@
 import { chromium } from 'playwright';
 
 const apiBase = process.env.MTX_API_URL || 'http://127.0.0.1:9997';
+const webRtcBase = process.env.WEBRTC_BASE_URL || 'http://127.0.0.1:8889';
 const pathName = process.env.WEBRTC_PUBLISH_PATH || 'live/poc-webrtc-ci';
-const url = process.env.WEBRTC_PUBLISH_URL || `http://127.0.0.1:8889/${pathName}/publish?user=poc-publisher&pass=poc-publisher-pass`;
+const publishUser = process.env.PUBLISH_USER || 'poc-publisher';
+const publishPass = process.env.PUBLISH_PASS || 'poc-publisher-pass';
 const timeoutMs = Number(process.env.WEBRTC_CHECK_TIMEOUT_MS || '30000');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -22,26 +24,16 @@ async function findPublishedPath() {
   return text.includes(pathName) ? { paths, sessions } : null;
 }
 
-async function clickStart(page) {
-  const selectors = [
-    'text=/publish|start|connect/i',
-    'button',
-    'input[type="button"]',
-    'input[type="submit"]',
-  ];
-
-  for (const selector of selectors) {
-    const locator = page.locator(selector).first();
-    if (await locator.count()) {
-      try {
-        await locator.click({ timeout: 3000 });
-        return true;
-      } catch {
-        // Try next selector.
-      }
+async function waitForPublishedPath() {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await findPublishedPath();
+    if (result) {
+      return result;
     }
+    await sleep(1000);
   }
-  return false;
+  throw new Error(`WebRTC publish path was not found: ${pathName}`);
 }
 
 const browser = await chromium.launch({
@@ -60,31 +52,60 @@ try {
   page.on('console', (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
   page.on('pageerror', (error) => console.log(`[browser:error] ${error.message}`));
 
-  console.log(`Open ${url}`);
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.goto(`${webRtcBase}/`, { waitUntil: 'domcontentloaded', timeout: timeoutMs }).catch(() => undefined);
 
-  await page.evaluate(async () => {
+  const publishResult = await page.evaluate(async ({ webRtcBase, pathName, publishUser, publishPass }) => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    window.__tracks = stream.getTracks().map((track) => `${track.kind}:${track.readyState}`);
-  });
-  console.log(`Fake media tracks: ${(await page.evaluate(() => window.__tracks)).join(', ')}`);
+    const pc = new RTCPeerConnection();
 
-  console.log(`Clicked start control: ${await clickStart(page)}`);
+    for (const track of stream.getTracks()) {
+      pc.addTrack(track, stream);
+    }
 
-  const startedAt = Date.now();
-  let found = null;
-  while (Date.now() - startedAt < timeoutMs) {
-    found = await findPublishedPath();
-    if (found) break;
-    await sleep(1000);
-  }
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-  if (!found) {
-    throw new Error(`WebRTC publish path was not found: ${pathName}`);
-  }
+    await new Promise((resolve) => {
+      if (pc.iceGatheringState === 'complete') {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(resolve, 5000);
+      pc.addEventListener('icegatheringstatechange', () => {
+        if (pc.iceGatheringState === 'complete') {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
 
+    const endpoint = `${webRtcBase}/${pathName}/whip?user=${encodeURIComponent(publishUser)}&pass=${encodeURIComponent(publishPass)}`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sdp' },
+      body: pc.localDescription.sdp,
+    });
+
+    const answer = await response.text();
+    if (!response.ok) {
+      throw new Error(`WHIP publish failed: ${response.status} ${answer}`);
+    }
+
+    await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+    window.__mediamtxPublisher = { pc, stream };
+
+    return {
+      tracks: stream.getTracks().map((track) => `${track.kind}:${track.readyState}`),
+      responseStatus: response.status,
+    };
+  }, { webRtcBase, pathName, publishUser, publishPass });
+
+  console.log(`Browser media tracks: ${publishResult.tracks.join(', ')}`);
+  console.log(`WHIP response status: ${publishResult.responseStatus}`);
+
+  const result = await waitForPublishedPath();
   console.log(`WebRTC publish confirmed: ${pathName}`);
-  console.log(JSON.stringify(found, null, 2));
+  console.log(JSON.stringify(result, null, 2));
 } finally {
   await browser.close();
 }
