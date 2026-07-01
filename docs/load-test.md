@@ -170,6 +170,11 @@ bash scripts/load/run-load-matrix.sh
 複数 case を再実行する場合:
 
 ```bash
+LOAD_COUNTS="10 20" \
+LOAD_PROFILES="medium" \
+LOAD_MODES="copy encode" \
+LOAD_PUBLISHERS="ffmpeg" \
+LOAD_REPEAT_COUNT="3" \
 LOAD_ONLY_CASE_IDS="ffmpeg_medium_encode_10s_0r_rep2 ffmpeg_medium_copy_20s_0r_rep1" \
 bash scripts/load/run-load-matrix.sh
 ```
