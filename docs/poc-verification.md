@@ -2,7 +2,7 @@
 
 ## 目的
 
-Web アプリなどから MediaMTX に動的に配信が追加される構成について、次の観点を確認する。
+Web アプリなどから MediaMTX に動的に配信が追加される構成について、ローカル環境で次の観点を確認する。
 
 1. 任意 path への publish により active path が作成されること
 2. `runOnReady` / `runOnNotReady` の発火タイミング
@@ -12,6 +12,7 @@ Web アプリなどから MediaMTX に動的に配信が追加される構成に
 6. kick 後に publisher が再接続するか
 7. internal 認証で publish / read / api の権限境界が効くこと
 8. 正規表現 path で `live/` 配下だけを検証対象にできること
+9. Playwright と Chromium のテスト用 media device で WebRTC publish 経路を確認できること
 
 このリポジトリは public 前提のため、実認証情報、実 IP、実ホスト名、実カメラ URL は記載しない。ここで使う ID / password はローカル検証用の example 値であり、本番・社内環境では使わない。
 
@@ -25,7 +26,7 @@ Web アプリなどから MediaMTX に動的に配信が追加される構成に
 - ffmpeg
 - bash
 
-Windows / WSL で実行する場合は、WSL 側に Docker CLI と ffmpeg を入れて実行する。
+GitHub Actions では、上記に加えて Node.js / Playwright / Chromium を使って WebRTC publish の自動確認を行う。
 
 ## 追加ファイル
 
@@ -33,11 +34,13 @@ Windows / WSL で実行する場合は、WSL 側に Docker CLI と ffmpeg を入
 |---|---|
 | `examples/docker-compose.poc.yml` | PoC 用 MediaMTX 起動 |
 | `examples/mediamtx.poc.yml` | PoC 用 MediaMTX 設定 |
+| `.github/workflows/poc-scripts.yml` | PoC 補助スクリプトの CI 実行 |
 | `scripts/poc/run-smoke.sh` | 最小動作確認をまとめて実行 |
 | `scripts/poc/api.sh` | Control API 呼び出し補助 |
 | `scripts/poc/publish-rtsp-testsrc.sh` | ffmpeg のテスト映像を RTSP publish |
 | `scripts/poc/record-rtsp-head.sh` | RTSP reader として冒頭数秒を録画 |
 | `scripts/poc/check-hls.sh` | HLS playlist 取得時間を確認 |
+| `scripts/poc/check-webrtc-publish.mjs` | Playwright で WebRTC publish を確認 |
 | `scripts/poc/kick-session.sh` | Control API で session / connection を kick |
 | `scripts/poc/hooks/log-ready.sh` | `runOnReady` ログ出力 |
 | `scripts/poc/hooks/log-not-ready.sh` | `runOnNotReady` ログ出力 |
@@ -74,7 +77,7 @@ docker compose -f examples/docker-compose.poc.yml down
 
 ## 2. active path 一覧を確認する
 
-Control API は PoC 設定で `127.0.0.1:9997` にだけ公開する。
+Control API は Docker Compose の port binding で `127.0.0.1:9997` にだけ公開する。
 
 ```bash
 bash scripts/poc/api.sh /v3/paths/list
@@ -181,7 +184,15 @@ bash scripts/poc/api.sh /v3/paths/list
 bash scripts/poc/api.sh /v3/webrtcsessions/list
 ```
 
-AWS 上でブラウザカメラを使う場合は HTTPS が必要になることが多い。AWS 検証では Security Group、UDP 8189、STUN/TURN、HTTPS 終端を別途確認する。
+GitHub Actions では、実カメラの代わりに Chromium のテスト用 media device を使って WebRTC publish 経路を確認する。
+
+```bash
+npm install
+npx playwright install chromium
+npm run check:webrtc-publish
+```
+
+CI で確認するのは、MediaMTX の publish ページを開き、WebRTC session と active path が作成されることまでである。実デバイス選択、スマホブラウザの権限操作、実利用環境での到達性は別途確認する。
 
 ## 8. Control API で session / connection を kick する
 
@@ -233,7 +244,7 @@ PoC 設定では以下の example credential を使う。
 |---|---|---|---|
 | publisher | `poc-publisher` | `poc-publisher-pass` | `live/` 配下へ publish |
 | viewer | `poc-viewer` | `poc-viewer-pass` | `live/` 配下を read |
-| api | anonymous from localhost | なし | localhost から Control API |
+| api | anonymous from local access | なし | Control API |
 
 確認例:
 
@@ -248,28 +259,17 @@ bash scripts/poc/publish-rtsp-testsrc.sh other/auth-ng-001
 - `other/...` は publish できない
 - Control API は `127.0.0.1:9997` にだけ bind され、外部公開しない
 
-## 11. AWS に持ち込む場合の置き換え
-
-| 項目 | ローカル | AWS |
-|---|---|---|
-| MediaMTX 起動 | Docker Compose | ECS on EC2 / EC2 Docker |
-| API | `127.0.0.1:9997` | インターネット非公開、同一 VPC / localhost のみ |
-| WebRTC HTTP | `:8889` | HTTPS 終端後に公開 |
-| WebRTC UDP | `:8189/udp` | Security Group で必要範囲だけ許可 |
-| 認証情報 | example 値 | Secrets Manager / SSM Parameter Store / JWT / HTTP auth |
-| 管理停止 | `kick-session.sh` | 管理バックエンド経由で Control API を呼ぶ |
-| 実カメラ URL | 使わない | public repo には絶対に入れない |
-
 ## 判定基準
 
 - `live/...` に対する動的 publish が active path として確認できる
 - `runOnReady` / `runOnNotReady` の発火タイミングをログで確認できる
 - reader / forwarder 起動が publish 後になる場合、冒頭欠落の有無を観測できる
 - HLS の初回遅延を測定できる
+- WebRTC publish 経路で session と active path が確認できる
 - Control API で session / connection を kick できる
 - kick 後の再接続有無を確認できる
 - internal 認証の path 制限が効く
-- AWS 移行時に公開してはいけないポート・secret・実 URL が整理できている
+- public repository に入れてはいけない secret・実 URL・検証ログを分離できている
 
 ## 次の設計判断
 
@@ -277,4 +277,4 @@ bash scripts/poc/publish-rtsp-testsrc.sh other/auth-ng-001
 2. 許容しない場合、publisher 開始前に reader / forwarder を先に準備するか
 3. 管理者停止は kick だけで足りるか、HTTP auth / JWT で再接続拒否まで行うか
 4. HLS を使うか、WebRTC / RTSP / SRT を優先するか
-5. AWS では ECS on EC2、単体 EC2、または別構成にするか
+5. ローカル検証で十分な項目と、別環境で確認が必要な項目を分けるか

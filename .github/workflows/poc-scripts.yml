@@ -1,0 +1,93 @@
+name: PoC scripts
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/poc-scripts.yml"
+      - "examples/docker-compose.poc.yml"
+      - "examples/mediamtx.poc.yml"
+      - "scripts/poc/**"
+      - "docs/poc-verification.md"
+      - "docs/poc-github-actions.md"
+      - "package.json"
+  push:
+    branches:
+      - "ci/poc-scripts-github-actions"
+    paths:
+      - ".github/workflows/poc-scripts.yml"
+      - "examples/docker-compose.poc.yml"
+      - "examples/mediamtx.poc.yml"
+      - "scripts/poc/**"
+      - "docs/poc-verification.md"
+      - "docs/poc-github-actions.md"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  poc-scripts:
+    name: Run PoC scripts smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg jq curl
+
+      - name: Install Playwright
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Show tool versions
+        run: |
+          docker --version
+          docker compose version
+          ffmpeg -version | head -n 1
+          jq --version
+          curl --version | head -n 1
+          node --version
+          npx playwright --version
+
+      - name: Validate shell script syntax
+        run: |
+          bash -n scripts/poc/*.sh
+          sh -n scripts/poc/hooks/*.sh
+          node --check scripts/poc/check-webrtc-publish.mjs
+
+      - name: Validate docker compose configuration
+        run: docker compose -f examples/docker-compose.poc.yml config
+
+      - name: Run smoke test
+        env:
+          PUBLISH_DURATION: "12"
+          RECORD_DURATION: "4"
+          MAX_WAIT_SECONDS: "20"
+        run: bash scripts/poc/run-smoke.sh
+
+      - name: Start MediaMTX for WebRTC publish check
+        run: docker compose -f examples/docker-compose.poc.yml up -d
+
+      - name: Run WebRTC publish check with fake camera
+        env:
+          WEBRTC_CHECK_TIMEOUT_MS: "30000"
+        run: npm run check:webrtc-publish
+
+      - name: Show MediaMTX logs
+        if: always()
+        run: docker compose -f examples/docker-compose.poc.yml logs mediamtx || true
+
+      - name: Show PoC output files
+        if: always()
+        run: find tmp/poc-output -maxdepth 2 -type f -print || true
+
+      - name: Stop MediaMTX
+        if: always()
+        run: docker compose -f examples/docker-compose.poc.yml down -v || true
