@@ -1,0 +1,104 @@
+name: MediaMTX load test graphs
+
+on:
+  workflow_dispatch:
+    inputs:
+      counts:
+        description: "同時 publisher 数。例: 1 5 10 20"
+        required: true
+        default: "1 5 10"
+      profiles:
+        description: "負荷 profile。候補: low medium high"
+        required: true
+        default: "low medium"
+      modes:
+        description: "配信 mode。候補: copy encode"
+        required: true
+        default: "copy"
+      publishers:
+        description: "publisher 実装。候補: ffmpeg gstreamer"
+        required: true
+        default: "ffmpeg"
+      repeat_count:
+        description: "同じ条件を何回測るか。例: 1, 2, 3"
+        required: true
+        default: "1"
+      only_case_ids:
+        description: "特定 case だけ再実行する場合の case_id。複数可。通常は空欄"
+        required: false
+        default: ""
+      duration:
+        description: "各 case の測定秒数"
+        required: true
+        default: "60"
+      sample_interval:
+        description: "metrics 取得間隔秒"
+        required: true
+        default: "5"
+      readers_per_stream:
+        description: "各 stream への reader 数。0なら受信のみ"
+        required: true
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    name: Run load test and render graphs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg jq curl python3-pip \
+            gstreamer1.0-tools \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav
+          python3 -m pip install --user matplotlib
+
+      - name: Run load test matrix
+        env:
+          LOAD_COUNTS: ${{ inputs.counts }}
+          LOAD_PROFILES: ${{ inputs.profiles }}
+          LOAD_MODES: ${{ inputs.modes }}
+          LOAD_PUBLISHERS: ${{ inputs.publishers }}
+          LOAD_REPEAT_COUNT: ${{ inputs.repeat_count }}
+          LOAD_ONLY_CASE_IDS: ${{ inputs.only_case_ids }}
+          LOAD_DURATION: ${{ inputs.duration }}
+          LOAD_SAMPLE_INTERVAL: ${{ inputs.sample_interval }}
+          LOAD_READERS_PER_STREAM: ${{ inputs.readers_per_stream }}
+          LOAD_OUTPUT_DIR: tmp/load-test/github-actions
+          LOAD_STOP_MEDIAMTX: "1"
+        run: bash scripts/load/run-load-matrix.sh
+
+      - name: Render graphs
+        run: python3 scripts/load/render-load-graphs.py tmp/load-test/github-actions
+
+      - name: Show generated files
+        if: always()
+        run: find tmp/load-test/github-actions -maxdepth 4 -type f -print -exec ls -lh {} \; || true
+
+      - name: Upload load test result artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediamtx-load-test-results
+          path: |
+            tmp/load-test/github-actions/**/*.csv
+            tmp/load-test/github-actions/**/*.json
+            tmp/load-test/github-actions/**/*.txt
+            tmp/load-test/github-actions/**/*.log
+            tmp/load-test/github-actions/**/*.prom
+            tmp/load-test/github-actions/**/*.png
+          if-no-files-found: error
+          retention-days: 7

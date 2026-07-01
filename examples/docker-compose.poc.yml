@@ -3,6 +3,9 @@ services:
     image: bluenviron/mediamtx:1
     container_name: mediamtx-poc
     restart: unless-stopped
+    environment:
+      MTX_METRICS: "yes"
+      MTX_METRICSADDRESS: ":9998"
     volumes:
       - ./mediamtx.poc.yml:/mediamtx.yml:ro
       - ../scripts/poc/hooks:/hooks:ro
@@ -13,6 +16,7 @@ services:
       - "8889:8889"
       - "8189:8189/udp"
       - "127.0.0.1:9997:9997"
+      - "127.0.0.1:9998:9998"
     networks:
       - pocnet
 
