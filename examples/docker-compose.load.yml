@@ -1,0 +1,51 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    container_name: mediamtx-poc
+    restart: unless-stopped
+    environment:
+      MTX_METRICS: "yes"
+      MTX_METRICSADDRESS: ":9998"
+    volumes:
+      - ./mediamtx.poc.yml:/mediamtx.yml:ro
+      - ../scripts/poc/hooks:/hooks:ro
+    ports:
+      - "8554:8554"
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    networks:
+      - pocnet
+
+  load-runner:
+    build:
+      context: ..
+      dockerfile: docker/load-runner/Dockerfile
+    image: mediamtx-playground-load-runner:local
+    depends_on:
+      - mediamtx
+    network_mode: service:mediamtx
+    environment:
+      MTX_API_URL: http://localhost:9997
+      MTX_METRICS_URL: http://localhost:9998
+      MTX_RTSP_HOST: localhost
+      MTX_RTSP_PORT: "8554"
+      LOAD_START_MEDIAMTX: "0"
+      LOAD_STOP_MEDIAMTX: "0"
+      LOAD_DOCKER_STATS: "0"
+      LOAD_OUTPUT_DIR: /workspace/tmp/load-test/container
+      LOAD_FIXTURE_DIR: /workspace/tmp/load-fixtures
+      LOAD_COUNTS: "1 5 10"
+      LOAD_PROFILES: "low medium"
+      LOAD_MODES: copy
+      LOAD_PUBLISHERS: ffmpeg
+      LOAD_REPEAT_COUNT: "1"
+      LOAD_DURATION: "60"
+      LOAD_SAMPLE_INTERVAL: "5"
+      LOAD_READERS_PER_STREAM: "0"
+    volumes:
+      - ../tmp:/workspace/tmp
+
+networks:
+  pocnet: {}

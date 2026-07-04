@@ -4,26 +4,46 @@ on:
   pull_request:
     paths:
       - ".github/workflows/poc-scripts.yml"
+      - ".github/workflows/load-test-graphs.yml"
+      - "docker/poc-runner/**"
+      - "docker/load-runner/**"
       - "examples/docker-compose.poc.yml"
+      - "examples/docker-compose.poc-runner.yml"
+      - "examples/docker-compose.load.yml"
+      - "examples/docker-compose.monitoring.yml"
       - "examples/mediamtx.poc.yml"
+      - "monitoring/**"
       - "scripts/poc/**"
       - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
       - "docs/load-test.md"
+      - "docs/container-load-test.md"
+      - "docs/monitoring-load-test.md"
+      - "README.md"
       - "package.json"
   push:
     branches:
       - "ci/poc-scripts-github-actions"
     paths:
       - ".github/workflows/poc-scripts.yml"
+      - ".github/workflows/load-test-graphs.yml"
+      - "docker/poc-runner/**"
+      - "docker/load-runner/**"
       - "examples/docker-compose.poc.yml"
+      - "examples/docker-compose.poc-runner.yml"
+      - "examples/docker-compose.load.yml"
+      - "examples/docker-compose.monitoring.yml"
       - "examples/mediamtx.poc.yml"
+      - "monitoring/**"
       - "scripts/poc/**"
       - "scripts/load/**"
       - "docs/poc-verification.md"
       - "docs/poc-github-actions.md"
       - "docs/load-test.md"
+      - "docs/container-load-test.md"
+      - "docs/monitoring-load-test.md"
+      - "README.md"
       - "package.json"
   workflow_dispatch:
 
@@ -40,56 +60,68 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install runtime dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg jq curl
-
-      - name: Install Playwright
-        run: |
-          npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
-
-      - name: Show tool versions
+      - name: Show Docker versions
         run: |
           docker --version
           docker compose version
-          ffmpeg -version | head -n 1
-          jq --version
-          curl --version | head -n 1
-          node --version
-          python3 --version
-          npx playwright --version
-
-      - name: Validate script syntax
-        run: |
-          bash -n scripts/poc/*.sh
-          sh -n scripts/poc/hooks/*.sh
-          bash -n scripts/load/*.sh
-          python3 -m py_compile scripts/load/render-load-graphs.py
-          node --check scripts/poc/check-webrtc-publish.mjs
 
       - name: Validate docker compose configuration
-        run: docker compose -f examples/docker-compose.poc.yml config
+        run: |
+          docker compose -f examples/docker-compose.poc.yml config
+          docker compose -f examples/docker-compose.poc-runner.yml config
+          docker compose -f examples/docker-compose.load.yml config
+          docker compose -f examples/docker-compose.load.yml -f examples/docker-compose.monitoring.yml config
 
-      - name: Run smoke test
+      - name: Build PoC runner image
+        run: docker compose -f examples/docker-compose.poc-runner.yml build poc-runner
+
+      - name: Validate script syntax in PoC runner
+        run: |
+          docker compose -f examples/docker-compose.poc-runner.yml run --rm --entrypoint bash poc-runner -lc '
+            bash -n scripts/poc/*.sh
+            sh -n scripts/poc/hooks/*.sh
+            bash -n scripts/load/*.sh
+            node --check scripts/poc/check-webrtc-publish.mjs
+          '
+
+      - name: Build load runner image
+        run: docker compose -f examples/docker-compose.load.yml -f examples/docker-compose.monitoring.yml build load-runner
+
+      - name: Validate load scripts in load runner
+        run: |
+          docker compose -f examples/docker-compose.load.yml -f examples/docker-compose.monitoring.yml run --rm --entrypoint python3 load-runner -m py_compile \
+            scripts/load/render-load-graphs.py \
+            scripts/load/export-prometheus-range.py
+
+      - name: Start MediaMTX
+        run: docker compose -f examples/docker-compose.poc-runner.yml up -d mediamtx
+
+      - name: Run smoke check in PoC runner
         env:
           PUBLISH_DURATION: "12"
           RECORD_DURATION: "4"
           MAX_WAIT_SECONDS: "20"
-        run: bash scripts/poc/run-smoke.sh
+        run: |
+          docker compose -f examples/docker-compose.poc-runner.yml run --rm --entrypoint bash \
+            -e PUBLISH_DURATION \
+            -e RECORD_DURATION \
+            -e MAX_WAIT_SECONDS \
+            poc-runner scripts/poc/run-smoke.sh
 
-      - name: Start MediaMTX for WebRTC publish check
-        run: docker compose -f examples/docker-compose.poc.yml up -d
-
-      - name: Run WebRTC publish check with fake camera
+      - name: Run WebRTC diagnostic in PoC runner
+        continue-on-error: true
         env:
           WEBRTC_CHECK_TIMEOUT_MS: "30000"
-        run: npm run check:webrtc-publish
+          WEBRTC_REQUIRE_RTP: "0"
+        run: |
+          docker compose -f examples/docker-compose.poc-runner.yml run --rm --entrypoint npm \
+            -e WEBRTC_CHECK_TIMEOUT_MS \
+            -e WEBRTC_REQUIRE_RTP \
+            poc-runner run check:webrtc-publish
 
       - name: Show MediaMTX logs
         if: always()
-        run: docker compose -f examples/docker-compose.poc.yml logs mediamtx || true
+        run: docker compose -f examples/docker-compose.poc-runner.yml logs mediamtx || true
 
       - name: Show PoC output files
         if: always()
@@ -97,4 +129,4 @@ jobs:
 
       - name: Stop MediaMTX
         if: always()
-        run: docker compose -f examples/docker-compose.poc.yml down -v || true
+        run: docker compose -f examples/docker-compose.poc-runner.yml down -v || true

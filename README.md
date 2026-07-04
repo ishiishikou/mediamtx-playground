@@ -52,14 +52,51 @@ Web アプリなどから MediaMTX に動的に配信が追加される構成に
 bash scripts/poc/run-smoke.sh
 ```
 
+## 負荷試験
+
+MediaMTX が複数の動画 publisher を同時に受信したときの安定性を確認するための負荷試験手順を追加しています。
+
+推奨は、ホストに FFmpeg / GStreamer / Python 依存を入れず、`load-runner` コンテナで実行する方法です。CPU / memory / network は Prometheus + cAdvisor 経由で確認します。
+
+- [MediaMTX 負荷試験手順](docs/load-test.md)
+- [MediaMTX 負荷試験のコンテナ運用](docs/container-load-test.md)
+- [Prometheus / cAdvisor を使った負荷試験監視](docs/monitoring-load-test.md)
+
+コンテナ実行の最小例:
+
+```bash
+docker compose \
+  -f examples/docker-compose.load.yml \
+  -f examples/docker-compose.monitoring.yml \
+  build load-runner
+
+docker compose \
+  -f examples/docker-compose.load.yml \
+  -f examples/docker-compose.monitoring.yml \
+  up -d mediamtx prometheus cadvisor
+
+docker compose \
+  -f examples/docker-compose.load.yml \
+  -f examples/docker-compose.monitoring.yml \
+  run --rm load-runner
+
+docker compose \
+  -f examples/docker-compose.load.yml \
+  -f examples/docker-compose.monitoring.yml \
+  down -v
+```
+
 ## ディレクトリ構成
 
 ```text
 .
 ├── configs/                         # MediaMTX の公開用 example 設定
 ├── compose/                         # Docker Compose 検証環境
+├── docker/                          # 検証用コンテナイメージ
 ├── docs/                            # 調査メモ
-├── scripts/                         # ローカル検証用スクリプト
+├── examples/                        # PoC 用 Compose / MediaMTX 設定
+├── monitoring/                      # Prometheus / 監視設定
+├── scripts/                         # ローカル・コンテナ検証用スクリプト
 ├── .env.example                     # 公開可能な環境変数サンプル
 ├── .gitignore                       # 秘密情報・録画・ログ除外
 ├── SECURITY.md                      # public 運用時の注意

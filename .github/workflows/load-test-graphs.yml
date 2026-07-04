@@ -53,20 +53,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install runtime dependencies
+      - name: Validate compose configuration
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg jq curl python3-pip \
-            gstreamer1.0-tools \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            gstreamer1.0-plugins-bad \
-            gstreamer1.0-plugins-ugly \
-            gstreamer1.0-libav
-          python3 -m pip install --user matplotlib
+          docker compose \
+            -f examples/docker-compose.load.yml \
+            -f examples/docker-compose.monitoring.yml \
+            config
 
-      - name: Run load test matrix
+      - name: Build load-runner image
+        run: |
+          docker compose \
+            -f examples/docker-compose.load.yml \
+            -f examples/docker-compose.monitoring.yml \
+            build load-runner
+
+      - name: Start MediaMTX and monitoring
+        run: |
+          docker compose \
+            -f examples/docker-compose.load.yml \
+            -f examples/docker-compose.monitoring.yml \
+            up -d mediamtx prometheus cadvisor
+
+      - name: Run load test matrix in container
         env:
           LOAD_COUNTS: ${{ inputs.counts }}
           LOAD_PROFILES: ${{ inputs.profiles }}
@@ -77,16 +85,43 @@ jobs:
           LOAD_DURATION: ${{ inputs.duration }}
           LOAD_SAMPLE_INTERVAL: ${{ inputs.sample_interval }}
           LOAD_READERS_PER_STREAM: ${{ inputs.readers_per_stream }}
-          LOAD_OUTPUT_DIR: tmp/load-test/github-actions
-          LOAD_STOP_MEDIAMTX: "1"
-        run: bash scripts/load/run-load-matrix.sh
-
-      - name: Render graphs
-        run: python3 scripts/load/render-load-graphs.py tmp/load-test/github-actions
+          LOAD_OUTPUT_DIR: /workspace/tmp/load-test/github-actions
+        run: |
+          docker compose \
+            -f examples/docker-compose.load.yml \
+            -f examples/docker-compose.monitoring.yml \
+            run --rm \
+            -e LOAD_COUNTS \
+            -e LOAD_PROFILES \
+            -e LOAD_MODES \
+            -e LOAD_PUBLISHERS \
+            -e LOAD_REPEAT_COUNT \
+            -e LOAD_ONLY_CASE_IDS \
+            -e LOAD_DURATION \
+            -e LOAD_SAMPLE_INTERVAL \
+            -e LOAD_READERS_PER_STREAM \
+            -e LOAD_OUTPUT_DIR \
+            load-runner
 
       - name: Show generated files
         if: always()
-        run: find tmp/load-test/github-actions -maxdepth 4 -type f -print -exec ls -lh {} \; || true
+        run: find tmp/load-test/github-actions -maxdepth 6 -type f -print -exec ls -lh {} \; || true
+
+      - name: Show stack logs
+        if: always()
+        run: |
+          docker compose \
+            -f examples/docker-compose.load.yml \
+            -f examples/docker-compose.monitoring.yml \
+            logs mediamtx prometheus cadvisor || true
+
+      - name: Stop stack
+        if: always()
+        run: |
+          docker compose \
+            -f examples/docker-compose.load.yml \
+            -f examples/docker-compose.monitoring.yml \
+            down -v || true
 
       - name: Upload load test result artifact
         if: always()

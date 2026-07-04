@@ -19,6 +19,7 @@ READERS_PER_STREAM="${LOAD_READERS_PER_STREAM:-0}"
 START_SPACING="${LOAD_START_SPACING:-0.2}"
 START_MEDIAMTX="${LOAD_START_MEDIAMTX:-1}"
 STOP_MEDIAMTX="${LOAD_STOP_MEDIAMTX:-0}"
+DOCKER_STATS="${LOAD_DOCKER_STATS:-0}"
 
 API_BASE="${MTX_API_URL:-http://127.0.0.1:9997}"
 METRICS_BASE="${MTX_METRICS_URL:-http://127.0.0.1:9998}"
@@ -52,7 +53,16 @@ need bash
 need curl
 need jq
 need ffmpeg
-need docker
+
+use_docker_stats() {
+  if [[ "${DOCKER_STATS}" != "1" && "${DOCKER_STATS}" != "true" && "${DOCKER_STATS}" != "yes" ]]; then
+    return 1
+  fi
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+  docker stats mediamtx-poc --no-stream --format '{{json .}}' >/dev/null 2>&1
+}
 
 profile_size() {
   case "$1" in
@@ -126,6 +136,14 @@ api_count() {
   curl -fsS "${API_BASE}${endpoint}" 2>/dev/null | jq -r '.itemCount // (.items | length) // 0' 2>/dev/null || echo 0
 }
 
+docker_stats_json() {
+  if ! use_docker_stats; then
+    echo ""
+    return 0
+  fi
+  docker stats mediamtx-poc --no-stream --format '{{json .}}' 2>/dev/null || true
+}
+
 collect_loop() {
   local case_dir="$1"
   local sample_csv="$2"
@@ -142,7 +160,7 @@ collect_loop() {
     paths="$(api_count /v3/paths/list)"
     rtsp_sessions="$(api_count /v3/rtspsessions/list)"
     webrtc_sessions="$(api_count /v3/webrtcsessions/list)"
-    docker_json="$(docker stats mediamtx-poc --no-stream --format '{{json .}}' 2>/dev/null || true)"
+    docker_json="$(docker_stats_json)"
     cpu="$(printf '%s' "${docker_json}" | jq -r '.CPUPerc // ""' 2>/dev/null | tr -d '%' || true)"
     mem="$(printf '%s' "${docker_json}" | jq -r '.MemUsage // ""' 2>/dev/null || true)"
     net="$(printf '%s' "${docker_json}" | jq -r '.NetIO // ""' 2>/dev/null || true)"
@@ -317,6 +335,10 @@ JSON
 }
 
 if [[ "${START_MEDIAMTX}" == "1" ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "LOAD_START_MEDIAMTX=1 requires docker. In the load-runner container, set LOAD_START_MEDIAMTX=0 and start MediaMTX with Docker Compose." >&2
+    exit 1
+  fi
   docker compose -f "${COMPOSE_FILE}" up -d
 fi
 
@@ -335,6 +357,11 @@ LOAD_DURATION=${DURATION}
 LOAD_SAMPLE_INTERVAL=${SAMPLE_INTERVAL}
 LOAD_READERS_PER_STREAM=${READERS_PER_STREAM}
 LOAD_START_SPACING=${START_SPACING}
+LOAD_DOCKER_STATS=${DOCKER_STATS}
+MTX_API_URL=${API_BASE}
+MTX_METRICS_URL=${METRICS_BASE}
+MTX_RTSP_HOST=${RTSP_HOST}
+MTX_RTSP_PORT=${RTSP_PORT}
 EOF
 
 for publisher in ${PUBLISHERS}; do
@@ -354,6 +381,10 @@ for publisher in ${PUBLISHERS}; do
 done
 
 if [[ "${STOP_MEDIAMTX}" == "1" ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "LOAD_STOP_MEDIAMTX=1 requires docker. In the load-runner container, stop the compose stack from the host." >&2
+    exit 1
+  fi
   docker compose -f "${COMPOSE_FILE}" down -v || true
 fi
 

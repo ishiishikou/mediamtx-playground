@@ -1,0 +1,32 @@
+[
+  {
+    "name": "mediamtx_container_cpu_percent",
+    "query": "sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=\"mediamtx\"}[30s])) * 100",
+    "unit": "percent"
+  },
+  {
+    "name": "mediamtx_container_memory_working_set_bytes",
+    "query": "sum(container_memory_working_set_bytes{container_label_com_docker_compose_service=\"mediamtx\"})",
+    "unit": "bytes"
+  },
+  {
+    "name": "mediamtx_container_network_receive_bytes_per_sec",
+    "query": "sum(rate(container_network_receive_bytes_total{container_label_com_docker_compose_service=\"mediamtx\"}[30s]))",
+    "unit": "bytes_per_second"
+  },
+  {
+    "name": "mediamtx_container_network_transmit_bytes_per_sec",
+    "query": "sum(rate(container_network_transmit_bytes_total{container_label_com_docker_compose_service=\"mediamtx\"}[30s]))",
+    "unit": "bytes_per_second"
+  },
+  {
+    "name": "load_runner_container_cpu_percent",
+    "query": "sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=\"load-runner\"}[30s])) * 100",
+    "unit": "percent"
+  },
+  {
+    "name": "load_runner_container_memory_working_set_bytes",
+    "query": "sum(container_memory_working_set_bytes{container_label_com_docker_compose_service=\"load-runner\"})",
+    "unit": "bytes"
+  }
+]
