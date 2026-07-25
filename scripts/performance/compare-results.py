@@ -49,6 +49,10 @@ def signature(row: dict[str, Any]) -> Counter[str]:
     return Counter(class_name(item) for item in detections(row))
 
 
+def positive_difference(left: Counter[str], right: Counter[str]) -> Counter[str]:
+    return Counter({name: count for name, count in (left - right).items() if count > 0})
+
+
 def pair_rows(
     webrtc: list[dict[str, Any]], rtsp: list[dict[str, Any]], tolerance_ms: float
 ) -> tuple[list[tuple[dict[str, Any], dict[str, Any]]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -116,9 +120,19 @@ def main() -> int:
 
     args.out.mkdir(parents=True, exist_ok=True)
     frame_rows = []
+    webrtc_excess = Counter[str]()
+    rtsp_excess = Counter[str]()
+
     for web_row, rtsp_row in paired:
         web_ts = timestamp(web_row)
         rtsp_ts = timestamp(rtsp_row)
+        web_signature = signature(web_row)
+        rtsp_signature = signature(rtsp_row)
+        frame_webrtc_excess = positive_difference(web_signature, rtsp_signature)
+        frame_rtsp_excess = positive_difference(rtsp_signature, web_signature)
+        webrtc_excess.update(frame_webrtc_excess)
+        rtsp_excess.update(frame_rtsp_excess)
+
         frame_rows.append({
             "frame_id": web_row.get("frame_id", rtsp_row.get("frame_id")),
             "webrtc_source_ts_ms": web_ts,
@@ -126,16 +140,23 @@ def main() -> int:
             "timestamp_delta_ms": abs(web_ts - rtsp_ts) if web_ts is not None and rtsp_ts is not None else None,
             "webrtc_detection_count": len(detections(web_row)),
             "rtsp_detection_count": len(detections(rtsp_row)),
-            "class_count_match": signature(web_row) == signature(rtsp_row),
-            "webrtc_classes": dict(signature(web_row)),
-            "rtsp_classes": dict(signature(rtsp_row)),
+            "class_count_match": web_signature == rtsp_signature,
+            "webrtc_classes": dict(web_signature),
+            "rtsp_classes": dict(rtsp_signature),
+            "webrtc_excess_by_class": dict(frame_webrtc_excess),
+            "rtsp_excess_by_class": dict(frame_rtsp_excess),
         })
+
+    for row in web_only:
+        webrtc_excess.update(signature(row))
+    for row in rtsp_only:
+        rtsp_excess.update(signature(row))
 
     with (args.out / "frame-comparison.csv").open("w", newline="", encoding="utf-8") as handle:
         fieldnames = list(frame_rows[0].keys()) if frame_rows else [
             "frame_id", "webrtc_source_ts_ms", "rtsp_source_ts_ms", "timestamp_delta_ms",
             "webrtc_detection_count", "rtsp_detection_count", "class_count_match",
-            "webrtc_classes", "rtsp_classes",
+            "webrtc_classes", "rtsp_classes", "webrtc_excess_by_class", "rtsp_excess_by_class",
         ]
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -144,6 +165,8 @@ def main() -> int:
                 **row,
                 "webrtc_classes": json.dumps(row["webrtc_classes"], ensure_ascii=False),
                 "rtsp_classes": json.dumps(row["rtsp_classes"], ensure_ascii=False),
+                "webrtc_excess_by_class": json.dumps(row["webrtc_excess_by_class"], ensure_ascii=False),
+                "rtsp_excess_by_class": json.dumps(row["rtsp_excess_by_class"], ensure_ascii=False),
             })
 
     summary = {
@@ -154,10 +177,14 @@ def main() -> int:
             "class_count_match_ratio": exact / len(paired) if paired else None,
             "webrtc_only_frames": len(web_only),
             "rtsp_only_frames": len(rtsp_only),
+            "webrtc_excess_detections": sum(webrtc_excess.values()),
+            "rtsp_excess_detections": sum(rtsp_excess.values()),
+            "webrtc_excess_by_class": dict(sorted(webrtc_excess.items())),
+            "rtsp_excess_by_class": dict(sorted(rtsp_excess.items())),
         },
         "webrtc": aggregate(web_rows),
         "rtsp": aggregate(rtsp_rows),
-        "interpretation": "正解率ではなく、同一入力に対する配信方式間の相対差を示す。",
+        "interpretation": "正解率ではなく、同一入力に対する配信方式間の相対差を示す。excessは対応側より多かった検出数であり、誤検出または欠落とは断定しない。",
     }
     (args.out / "comparison-summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
