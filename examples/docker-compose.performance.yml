@@ -20,6 +20,38 @@ services:
     networks:
       - perfnet
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mediamtx-poc-prometheus
+    profiles: ["monitoring"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=6h
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - perfnet
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: mediamtx-poc-cadvisor
+    profiles: ["monitoring"]
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - perfnet
+
   performance-runner:
     build:
       context: ..
@@ -31,6 +63,7 @@ services:
     environment:
       MTX_API_URL: http://localhost:9997
       MTX_METRICS_URL: http://localhost:9998/metrics
+      PROMETHEUS_URL: http://prometheus:9090
       WEBRTC_BASE_URL: http://localhost:8889
       RTSP_BASE_URL: rtsp://poc-publisher:poc-publisher-pass@localhost:8554
       PUBLISH_USER: poc-publisher
@@ -46,3 +79,6 @@ services:
 
 networks:
   perfnet: {}
+
+volumes:
+  prometheus-data: {}
