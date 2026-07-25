@@ -4,7 +4,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=development \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -22,7 +23,7 @@ RUN apt-get update \
 WORKDIR /workspace
 
 COPY package.json ./
-RUN npm install --no-audit --no-fund \
+RUN npm install --no-audit --no-fund --no-save playwright@1.53.0 \
     && python3 -m pip install matplotlib
 
 COPY configs ./configs
