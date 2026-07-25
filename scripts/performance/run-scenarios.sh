@@ -45,7 +45,7 @@ scenario_count=$(jq '.scenarios | length' "${CONFIG}")
 for ((scenario_index=0; scenario_index<scenario_count; scenario_index++)); do
   scenario=$(jq -c ".scenarios[${scenario_index}]" "${CONFIG}")
   id=$(jq -r '.id' <<<"${scenario}")
-  automated=$(jq -r '.automated // true' <<<"${scenario}")
+  automated=$(jq -r 'if has("automated") then .automated else true end' <<<"${scenario}")
   protocol=$(jq -r '.protocol' <<<"${scenario}")
   priority=$(jq -r '.priority // "must"' <<<"${scenario}")
 
