@@ -98,14 +98,17 @@ docker compose \
 
 ```bash
 docker compose -f examples/docker-compose.performance.yml build performance-runner
-docker compose -f examples/docker-compose.performance.yml up -d mediamtx
+docker compose -f examples/docker-compose.performance.yml --profile monitoring \
+  up -d mediamtx prometheus cadvisor
 
 PERF_ONLY_SCENARIOS="P01_WEBRTC_1 P02_RTSP_1" \
 docker compose -f examples/docker-compose.performance.yml run --rm \
   -e PERF_ONLY_SCENARIOS performance-runner
 
-docker compose -f examples/docker-compose.performance.yml down -v
+docker compose -f examples/docker-compose.performance.yml --profile monitoring down -v
 ```
+
+Prometheus / cAdvisorを起動しない場合でも配信試験は実行できますが、MediaMTXコンテナのCPU・メモリ・通信量列は空欄になります。
 
 実動画、実環境URL、認証情報、測定ログは`tmp/`や`.env`へ分離し、public repositoryへ登録しません。
 
