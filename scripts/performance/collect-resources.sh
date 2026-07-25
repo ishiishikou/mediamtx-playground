@@ -11,6 +11,11 @@ mkdir -p "${OUTPUT_DIR}/metrics"
 HOST_CSV="${OUTPUT_DIR}/resource-samples.csv"
 printf 'timestamp_ms,load1,mem_available_kb,gpu_util_percent,gpu_memory_used_mb,gpu_memory_total_mb,mediamtx_cpu_cores,mediamtx_memory_bytes,mediamtx_network_receive_bps,mediamtx_network_transmit_bps\n' > "${HOST_CSV}"
 
+if [[ -n "${PROMETHEUS_URL}" ]] && ! curl -fsS --connect-timeout 1 --max-time 2 "${PROMETHEUS_URL}/-/ready" >/dev/null 2>&1; then
+  echo "Prometheus is unavailable; container resource columns will remain empty" >&2
+  PROMETHEUS_URL=""
+fi
+
 prom_query() {
   local query="$1"
   [[ -n "${PROMETHEUS_URL}" ]] || return 0
