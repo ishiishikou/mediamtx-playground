@@ -1,0 +1,93 @@
+{
+  "defaults": {
+    "input": "/workspace/tmp/performance-fixtures/sample.mp4",
+    "inputY4m": "/workspace/tmp/performance-fixtures/sample.y4m",
+    "durationSeconds": 300,
+    "repeats": 3,
+    "statsIntervalSeconds": 5,
+    "pathPrefix": "live/perf",
+    "resultEventName": "perf:inference-result"
+  },
+  "scenarios": [
+    {
+      "id": "P01_WEBRTC_1",
+      "purpose": "WebRTC 1クライアントの基準値取得",
+      "protocol": "webrtc",
+      "clients": 1,
+      "durationSeconds": 300,
+      "repeats": 3,
+      "priority": "must",
+      "automated": true
+    },
+    {
+      "id": "P02_RTSP_1",
+      "purpose": "RTSP 1クライアントの比較基準値取得",
+      "protocol": "rtsp",
+      "clients": 1,
+      "durationSeconds": 300,
+      "repeats": 3,
+      "priority": "must",
+      "automated": true
+    },
+    {
+      "id": "P03_WEBRTC_NORMAL",
+      "purpose": "WebRTC 通常想定負荷の性能確認",
+      "protocol": "webrtc",
+      "clients": 3,
+      "durationSeconds": 600,
+      "repeats": 3,
+      "priority": "must",
+      "automated": true
+    },
+    {
+      "id": "P04_RTSP_NORMAL",
+      "purpose": "RTSP 通常想定負荷の相対比較",
+      "protocol": "rtsp",
+      "clients": 3,
+      "durationSeconds": 600,
+      "repeats": 3,
+      "priority": "must",
+      "automated": true
+    },
+    {
+      "id": "P05_WEBRTC_MEDIUM",
+      "purpose": "WebRTC 中程度負荷での劣化傾向確認",
+      "protocol": "webrtc",
+      "clients": 6,
+      "durationSeconds": 600,
+      "repeats": 2,
+      "priority": "must",
+      "automated": true
+    },
+    {
+      "id": "P06_RTSP_MEDIUM",
+      "purpose": "RTSP 中程度負荷での劣化傾向比較",
+      "protocol": "rtsp",
+      "clients": 6,
+      "durationSeconds": 600,
+      "repeats": 2,
+      "priority": "must",
+      "automated": true
+    },
+    {
+      "id": "P07_WEBRTC_STABILITY",
+      "purpose": "WebRTC 2時間継続時の切断・遅延・リソース増加確認",
+      "protocol": "webrtc",
+      "clients": 3,
+      "durationSeconds": 7200,
+      "repeats": 1,
+      "priority": "optional",
+      "automated": true
+    },
+    {
+      "id": "P08_SMARTPHONE_FINAL",
+      "purpose": "実スマートフォンでの最終E2E遅延・表示・接続確認",
+      "protocol": "webrtc-smartphone",
+      "clients": 1,
+      "durationSeconds": 300,
+      "repeats": 3,
+      "priority": "must",
+      "automated": false
+    }
+  ]
+}
