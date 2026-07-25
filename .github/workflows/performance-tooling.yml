@@ -34,14 +34,43 @@ jobs:
 
       - name: Generate a short fixture
         run: |
-          docker compose -f examples/docker-compose.performance.yml run --rm \
+          docker compose -f examples/docker-compose.performance.yml run --rm --no-deps \
             --entrypoint bash \
             -e PERF_FIXTURE_DURATION=2 \
             -e PERF_FIXTURE_FPS=5 \
             performance-runner scripts/performance/prepare-fixture.sh
+          test -s tmp/performance-fixtures/sample.mp4
+          test -s tmp/performance-fixtures/sample.y4m
 
-      - name: Show generated fixture
-        run: find tmp/performance-fixtures -maxdepth 1 -type f -print -exec ls -lh {} \;
+      - name: Exercise inference result comparison
+        run: |
+          mkdir -p tmp/performance-ci
+          cat > tmp/performance-ci/webrtc.jsonl <<'JSONL'
+          {"frame_id":"1","source_ts_ms":1000,"detections":[{"class":"person","confidence":0.90},{"class":"car","confidence":0.80}]}
+          {"frame_id":"2","source_ts_ms":1100,"detections":[{"class":"person","confidence":0.85}]}
+          JSONL
+          cat > tmp/performance-ci/rtsp.jsonl <<'JSONL'
+          {"frame_id":"1","source_ts_ms":1000,"detections":[{"class":"person","confidence":0.92}]}
+          {"frame_id":"2","source_ts_ms":1100,"detections":[{"class":"person","confidence":0.83},{"class":"bicycle","confidence":0.70}]}
+          JSONL
+          docker compose -f examples/docker-compose.performance.yml run --rm --no-deps \
+            --entrypoint python3 performance-runner \
+            scripts/performance/compare-results.py \
+              --webrtc /workspace/tmp/performance-ci/webrtc.jsonl \
+              --rtsp /workspace/tmp/performance-ci/rtsp.jsonl \
+              --out /workspace/tmp/performance-ci/comparison
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          summary = json.loads(Path('tmp/performance-ci/comparison/comparison-summary.json').read_text())
+          assert summary['matching']['paired_frames'] == 2
+          assert summary['matching']['webrtc_excess_by_class'] == {'car': 1}
+          assert summary['matching']['rtsp_excess_by_class'] == {'bicycle': 1}
+          PY
+
+      - name: Show generated files
+        run: find tmp -maxdepth 4 -type f -print -exec ls -lh {} \;
 
       - name: Cleanup
         if: always()
