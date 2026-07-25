@@ -34,7 +34,7 @@ jobs:
 
       - name: Generate a short fixture
         run: |
-          docker compose -f examples/docker-compose.performance.yml run --rm --no-deps \
+          docker compose -f examples/docker-compose.performance.yml run --rm \
             --entrypoint bash \
             -e PERF_FIXTURE_DURATION=2 \
             -e PERF_FIXTURE_FPS=5 \
@@ -53,7 +53,7 @@ jobs:
           {"frame_id":"1","source_ts_ms":1000,"detections":[{"class":"person","confidence":0.92}]}
           {"frame_id":"2","source_ts_ms":1100,"detections":[{"class":"person","confidence":0.83},{"class":"bicycle","confidence":0.70}]}
           JSONL
-          docker compose -f examples/docker-compose.performance.yml run --rm --no-deps \
+          docker compose -f examples/docker-compose.performance.yml run --rm \
             --entrypoint python3 performance-runner \
             scripts/performance/compare-results.py \
               --webrtc /workspace/tmp/performance-ci/webrtc.jsonl \
