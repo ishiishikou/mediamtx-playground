@@ -1,0 +1,84 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    container_name: mediamtx-poc
+    restart: unless-stopped
+    environment:
+      MTX_METRICS: "yes"
+      MTX_METRICSADDRESS: ":9998"
+    volumes:
+      - ./mediamtx.poc.yml:/mediamtx.yml:ro
+      - ../scripts/poc/hooks:/hooks:ro
+    ports:
+      - "8554:8554"
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+      - "127.0.0.1:9997:9997"
+      - "127.0.0.1:9998:9998"
+    networks:
+      - perfnet
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mediamtx-poc-prometheus
+    profiles: ["monitoring"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=6h
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - perfnet
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: mediamtx-poc-cadvisor
+    profiles: ["monitoring"]
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - perfnet
+
+  performance-runner:
+    build:
+      context: ..
+      dockerfile: docker/performance-runner/Dockerfile
+    image: mediamtx-playground-performance-runner:local
+    depends_on:
+      - mediamtx
+    network_mode: service:mediamtx
+    environment:
+      MTX_API_URL: http://localhost:9997
+      MTX_METRICS_URL: http://localhost:9998/metrics
+      PROMETHEUS_URL: http://prometheus:9090
+      WEBRTC_BASE_URL: http://localhost:8889
+      RTSP_BASE_URL: rtsp://poc-publisher:poc-publisher-pass@localhost:8554
+      PUBLISH_USER: poc-publisher
+      PUBLISH_PASS: poc-publisher-pass
+      PERF_CONFIG: /workspace/configs/performance/scenarios.example.json
+      PERF_OUTPUT_ROOT: /workspace/tmp/performance-results
+      PERF_FIXTURE_DIR: /workspace/tmp/performance-fixtures
+      PERF_HEADLESS: "1"
+      PERF_ONLY_SCENARIOS: ""
+      PERF_APP_URL: ""
+    volumes:
+      - ../tmp:/workspace/tmp
+
+networks:
+  perfnet: {}
+
+volumes:
+  prometheus-data: {}

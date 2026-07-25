@@ -1,0 +1,90 @@
+name: Performance tooling checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/performance-tooling.yml"
+      - "configs/performance/**"
+      - "docker/performance-runner/**"
+      - "docs/performance-measurement-plan.md"
+      - "examples/docker-compose.performance.yml"
+      - "scripts/performance/**"
+      - "README.md"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate source syntax
+        run: |
+          bash -n scripts/performance/*.sh
+          node --check scripts/performance/webrtc-publisher.mjs
+          python3 -m py_compile scripts/performance/*.py
+          python3 -m json.tool configs/performance/scenarios.example.json >/dev/null
+
+      - name: Validate compose configuration
+        run: docker compose -f examples/docker-compose.performance.yml config
+
+      - name: Prepare output directory
+        run: mkdir -p tmp
+
+      - name: Build performance runner
+        run: docker compose -f examples/docker-compose.performance.yml build performance-runner
+
+      - name: Generate a short fixture
+        run: |
+          docker compose -f examples/docker-compose.performance.yml run --rm \
+            --entrypoint bash \
+            -e PERF_FIXTURE_DURATION=2 \
+            -e PERF_FIXTURE_FPS=5 \
+            performance-runner scripts/performance/prepare-fixture.sh
+          test -s tmp/performance-fixtures/sample.mp4
+          test -s tmp/performance-fixtures/sample.y4m
+
+      - name: Prepare inference comparison inputs
+        run: |
+          mkdir -p tmp/performance-ci
+          cat > tmp/performance-ci/webrtc.jsonl <<'JSONL'
+          {"frame_id":"1","source_ts_ms":1000,"detections":[{"class":"person","confidence":0.90},{"class":"car","confidence":0.80}]}
+          {"frame_id":"2","source_ts_ms":1100,"detections":[{"class":"person","confidence":0.85}]}
+          JSONL
+          cat > tmp/performance-ci/rtsp.jsonl <<'JSONL'
+          {"frame_id":"1","source_ts_ms":1000,"detections":[{"class":"person","confidence":0.92}]}
+          {"frame_id":"2","source_ts_ms":1100,"detections":[{"class":"person","confidence":0.83},{"class":"bicycle","confidence":0.70}]}
+          JSONL
+          cat tmp/performance-ci/webrtc.jsonl
+          cat tmp/performance-ci/rtsp.jsonl
+
+      - name: Run inference result comparison
+        run: |
+          docker compose -f examples/docker-compose.performance.yml run --rm \
+            --entrypoint python3 performance-runner \
+            scripts/performance/compare-results.py \
+              --webrtc /workspace/tmp/performance-ci/webrtc.jsonl \
+              --rtsp /workspace/tmp/performance-ci/rtsp.jsonl \
+              --out /workspace/tmp/performance-ci/comparison
+          cat tmp/performance-ci/comparison/comparison-summary.json
+
+      - name: Verify inference comparison summary
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          summary = json.loads(Path('tmp/performance-ci/comparison/comparison-summary.json').read_text())
+          assert summary['matching']['paired_frames'] == 2
+          assert summary['matching']['webrtc_excess_by_class'] == {'car': 1}
+          assert summary['matching']['rtsp_excess_by_class'] == {'bicycle': 1}
+          PY
+
+      - name: Show generated files
+        if: always()
+        run: find tmp -maxdepth 4 -type f -print -exec ls -lh {} \; || true
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f examples/docker-compose.performance.yml down -v || true
