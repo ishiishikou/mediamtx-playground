@@ -1,0 +1,48 @@
+name: Performance tooling checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/performance-tooling.yml"
+      - "configs/performance/**"
+      - "docker/performance-runner/**"
+      - "docs/performance-measurement-plan.md"
+      - "examples/docker-compose.performance.yml"
+      - "scripts/performance/**"
+      - "README.md"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate source syntax
+        run: |
+          bash -n scripts/performance/*.sh
+          node --check scripts/performance/webrtc-publisher.mjs
+          python3 -m py_compile scripts/performance/*.py
+          python3 -m json.tool configs/performance/scenarios.example.json >/dev/null
+
+      - name: Validate compose configuration
+        run: docker compose -f examples/docker-compose.performance.yml config
+
+      - name: Build performance runner
+        run: docker compose -f examples/docker-compose.performance.yml build performance-runner
+
+      - name: Generate a short fixture
+        run: |
+          docker compose -f examples/docker-compose.performance.yml run --rm \
+            --entrypoint bash \
+            -e PERF_FIXTURE_DURATION=2 \
+            -e PERF_FIXTURE_FPS=5 \
+            performance-runner scripts/performance/prepare-fixture.sh
+
+      - name: Show generated fixture
+        run: find tmp/performance-fixtures -maxdepth 1 -type f -print -exec ls -lh {} \;
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f examples/docker-compose.performance.yml down -v || true
