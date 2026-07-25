@@ -42,7 +42,7 @@ jobs:
           test -s tmp/performance-fixtures/sample.mp4
           test -s tmp/performance-fixtures/sample.y4m
 
-      - name: Exercise inference result comparison
+      - name: Prepare inference comparison inputs
         run: |
           mkdir -p tmp/performance-ci
           cat > tmp/performance-ci/webrtc.jsonl <<'JSONL'
@@ -53,12 +53,21 @@ jobs:
           {"frame_id":"1","source_ts_ms":1000,"detections":[{"class":"person","confidence":0.92}]}
           {"frame_id":"2","source_ts_ms":1100,"detections":[{"class":"person","confidence":0.83},{"class":"bicycle","confidence":0.70}]}
           JSONL
+          cat tmp/performance-ci/webrtc.jsonl
+          cat tmp/performance-ci/rtsp.jsonl
+
+      - name: Run inference result comparison
+        run: |
           docker compose -f examples/docker-compose.performance.yml run --rm \
             --entrypoint python3 performance-runner \
             scripts/performance/compare-results.py \
               --webrtc /workspace/tmp/performance-ci/webrtc.jsonl \
               --rtsp /workspace/tmp/performance-ci/rtsp.jsonl \
               --out /workspace/tmp/performance-ci/comparison
+          cat tmp/performance-ci/comparison/comparison-summary.json
+
+      - name: Verify inference comparison summary
+        run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -70,7 +79,8 @@ jobs:
           PY
 
       - name: Show generated files
-        run: find tmp -maxdepth 4 -type f -print -exec ls -lh {} \;
+        if: always()
+        run: find tmp -maxdepth 4 -type f -print -exec ls -lh {} \; || true
 
       - name: Cleanup
         if: always()
