@@ -29,6 +29,9 @@ jobs:
       - name: Validate compose configuration
         run: docker compose -f examples/docker-compose.performance.yml config
 
+      - name: Prepare output directory
+        run: mkdir -p tmp
+
       - name: Build performance runner
         run: docker compose -f examples/docker-compose.performance.yml build performance-runner
 
