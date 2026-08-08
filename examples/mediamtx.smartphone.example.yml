@@ -34,6 +34,10 @@ authInternalUsers:
     permissions:
       - action: publish
         path: "~^live/.+$"
+      # /<path>/publish のブラウザページを取得するために必要。
+      # 実際のWHIP publish可否は上のpublish権限で別途判定される。
+      - action: playback
+        path: "~^live/.+$"
 
   - user: poc-viewer
     pass: poc-viewer-pass
