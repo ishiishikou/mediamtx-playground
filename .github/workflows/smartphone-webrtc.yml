@@ -86,6 +86,14 @@ jobs:
       - name: Generate temporary CA and server certificate
         run: docker compose -f examples/docker-compose.smartphone.yml run --rm cert-generator
 
+      - name: Generate publish QR code
+        run: |
+          docker compose -f examples/docker-compose.smartphone.yml run --rm --no-deps \
+            --entrypoint qrencode cert-generator \
+            -o /work/public/publish-qr.png -s 8 -m 4 \
+            'https://192.0.2.10:8889/live/iphone-001/publish'
+          test -s tmp/smartphone/public/publish-qr.png
+
       - name: Validate generated assets
         run: |
           test -s tmp/smartphone/certs/ca/rootCA.pem
@@ -93,6 +101,7 @@ jobs:
           test -s tmp/smartphone/certs/server.crt
           test -s tmp/smartphone/certs/server.key
           test -s tmp/smartphone/public/rootCA.pem
+          test -s tmp/smartphone/public/publish-qr.png
           test -s tmp/smartphone/generated/mediamtx.yml
           test ! -e tmp/smartphone/public/rootCA-key.pem
           cmp tmp/smartphone/certs/ca/rootCA.pem tmp/smartphone/public/rootCA.pem
@@ -117,6 +126,8 @@ jobs:
             sleep 1
           done
           cmp tmp/smartphone/public/rootCA.pem /tmp/rootCA.pem
+          curl -fsS http://127.0.0.1:8000/publish-qr.png -o /tmp/publish-qr.png
+          test -s /tmp/publish-qr.png
 
           for i in $(seq 1 20); do
             if curl -fsS \
