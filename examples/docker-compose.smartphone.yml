@@ -1,3 +1,5 @@
+name: mediamtx-smartphone
+
 services:
   cert-generator:
     build:
