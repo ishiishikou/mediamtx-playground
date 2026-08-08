@@ -11,7 +11,7 @@ function Test-IsAdministrator {
 
 function Get-SmartphoneRepositoryRoot {
     $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-    return $root.Path
+    return $root.ProviderPath
 }
 
 function Get-WslRepositoryContext {
