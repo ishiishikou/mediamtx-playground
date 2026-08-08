@@ -17,9 +17,6 @@ if (-not $SkipFirewall -and -not (Test-IsAdministrator)) {
     if (-not [string]::IsNullOrWhiteSpace($Distro)) {
         $arguments += " -Distro `"$Distro`""
     }
-    if ($SkipFirewall) {
-        $arguments += ' -SkipFirewall'
-    }
 
     $process = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arguments -Wait -PassThru
     exit $process.ExitCode
@@ -36,14 +33,6 @@ Assert-IPv4Address -Address $LanIp
 $composeFile = 'examples/docker-compose.smartphone.yml'
 $composeStarted = $false
 $firewallAdded = $false
-$handlerRegistered = $false
-$script:SmartphoneStopRequested = $false
-
-$cancelHandler = [ConsoleCancelEventHandler]{
-    param($sender, $eventArgs)
-    $eventArgs.Cancel = $true
-    $script:SmartphoneStopRequested = $true
-}
 
 try {
     Write-Host "[1/6] WSL/Dockerを確認します: $($context.RepoPath)"
@@ -90,21 +79,13 @@ try {
     Write-Host '  3. 設定 > 一般 > 情報 > 証明書信頼設定 で完全な信頼を有効化'
     Write-Host '  4. WebRTC publish URLを開き、Basic認証とカメラ権限を許可'
     Write-Host ''
-    Write-Host '終了するには Ctrl+C を押してください。Firewallルールとコンテナを自動で削除します。' -ForegroundColor Yellow
+    Write-Host '停止するとFirewallルールとコンテナを自動で削除します。' -ForegroundColor Yellow
     Write-Host 'CAとサーバー証明書は次回再利用するため tmp/smartphone/ に残します。完全削除は cleanup.ps1 を使用します。'
+    Write-Host ''
 
-    [Console]::add_CancelKeyPress($cancelHandler)
-    $handlerRegistered = $true
-
-    while (-not $script:SmartphoneStopRequested) {
-        Start-Sleep -Seconds 1
-    }
+    Read-Host '停止するには Enter を押してください（Ctrl+Cでも停止できます）' | Out-Null
 }
 finally {
-    if ($handlerRegistered) {
-        [Console]::remove_CancelKeyPress($cancelHandler)
-    }
-
     Write-Host ''
     Write-Host 'スマートフォンWebRTC検証環境を停止します。'
     try {
