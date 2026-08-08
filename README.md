@@ -112,6 +112,26 @@ Prometheus / cAdvisorを起動しない場合でも配信試験は実行でき�
 
 実動画、実環境URL、認証情報、測定ログは`tmp/`や`.env`へ分離し、public repositoryへ登録しません。
 
+## スマートフォン実機からWebRTC publish
+
+Windows + WSL2 + Docker DesktopのPCと同一LAN上のスマートフォンから、実カメラ映像をHTTPS/WebRTCでMediaMTXへpublishできます。証明書はDocker内のmkcertで生成し、Windows Firewallは検証中だけLocalSubnetへ開放します。
+
+- [スマートフォン実機からWebRTC publishする手順](docs/smartphone-webrtc.md)
+- 起動スクリプト: `scripts/smartphone/start.ps1`
+- 停止スクリプト: `scripts/smartphone/stop.ps1`
+- 完全削除: `scripts/smartphone/cleanup.ps1`
+
+WSLのリポジトリ直下から起動する例:
+
+```bash
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File "$(wslpath -w scripts/smartphone/start.ps1)"
+```
+
+必要に応じてUACで管理者権限へ昇格した後、LAN IP検出、検証用CA/サーバー証明書生成、Firewall設定、MediaMTX起動まで自動で行います。終了は起動したPowerShellで `Ctrl+C` を押します。Compose stackとFirewallルールは自動削除し、CAは短期検証中の再利用のため `tmp/smartphone/` に残します。
+
+PCへmkcertやOpenSSLを追加インストールする必要はありません。iPhone/Android側では初回のみ `rootCA.pem` のインストールと信頼設定が必要です。
+
 ## ディレクトリ構成
 
 ```text
