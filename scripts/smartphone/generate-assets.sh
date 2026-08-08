@@ -16,17 +16,15 @@ TEMPLATE=/templates/mediamtx.smartphone.example.yml
 mkdir -p "${CERT_ROOT}/ca" "${PUBLIC_ROOT}" "${GENERATED_ROOT}"
 export CAROOT="${CERT_ROOT}/ca"
 
-# CA は検証期間中に再利用する。-install の trust store はこの一時コンテナ内だけであり、
-# Windows / WSL の trust store には変更を加えない。
-mkcert -install >/dev/null
-
+# mkcert は CAROOT にCAがなければ自動生成する。
+# -install は実行しないため、Windows / WSL / コンテナの trust store は変更しない。
 mkcert \
   -cert-file "${CERT_ROOT}/server.crt" \
   -key-file "${CERT_ROOT}/server.key" \
   "${SMARTPHONE_LAN_IP}" localhost 127.0.0.1
 
-# HTTP 配信側には公開鍵である CA 証明書だけをコピーする。
-# rootCA-key.pem は CERT_ROOT 配下に残し、cert-server からは見えないようにする。
+# CA は検証期間中に再利用する。HTTP配信側には公開情報であるCA証明書だけをコピーする。
+# rootCA-key.pem は CERT_ROOT 配下に残し、cert-server からは参照できない。
 cp "${CAROOT}/rootCA.pem" "${PUBLIC_ROOT}/rootCA.pem"
 chmod 0600 "${CERT_ROOT}/server.key" "${CAROOT}/rootCA-key.pem"
 chmod 0644 "${CERT_ROOT}/server.crt" "${CAROOT}/rootCA.pem" "${PUBLIC_ROOT}/rootCA.pem"
