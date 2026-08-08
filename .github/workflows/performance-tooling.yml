@@ -44,15 +44,15 @@ jobs:
             -e PERF_RESOURCE_BACKEND=auto \
             performance-runner \
             scripts/performance/collect-resources.sh \
-              /workspace/tmp/performance-ci/resources 6 1
-          cat tmp/performance-ci/resources/resource-backend.txt
-          cat tmp/performance-ci/resources/resource-samples.csv
-          grep -qx 'selected=docker' tmp/performance-ci/resources/resource-backend.txt
+              /workspace/tmp/performance-resource-ci/resources 6 1
+          cat tmp/performance-resource-ci/resources/resource-backend.txt
+          cat tmp/performance-resource-ci/resources/resource-samples.csv
+          grep -qx 'selected=docker' tmp/performance-resource-ci/resources/resource-backend.txt
           python3 - <<'PY'
           import csv
           from pathlib import Path
 
-          rows = list(csv.DictReader(Path('tmp/performance-ci/resources/resource-samples.csv').open()))
+          rows = list(csv.DictReader(Path('tmp/performance-resource-ci/resources/resource-samples.csv').open()))
           assert rows, 'resource samples were not written'
           assert any(row['mediamtx_cpu_cores'] for row in rows), 'MediaMTX CPU was not collected'
           assert any(row['mediamtx_memory_bytes'] for row in rows), 'MediaMTX memory was not collected'
