@@ -3,7 +3,7 @@ FROM alpine:3.20
 ARG MKCERT_VERSION=1.4.4
 ARG TARGETARCH
 
-RUN apk add --no-cache ca-certificates curl qrencode \
+RUN apk add --no-cache ca-certificates curl libqrencode-tools \
     && case "${TARGETARCH}" in \
          amd64|arm64) mkcert_arch="${TARGETARCH}" ;; \
          *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
