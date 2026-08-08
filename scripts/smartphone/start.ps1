@@ -34,6 +34,8 @@ $composeFile = 'examples/docker-compose.smartphone.yml'
 $composeStarted = $false
 $firewallAdded = $false
 $composeEnv = 'export SMARTPHONE_LAN_IP=' + $LanIp + '; export SMARTPHONE_UID=$(id -u); export SMARTPHONE_GID=$(id -g); '
+$publishUrl = "https://${LanIp}:8889/live/iphone-001/publish"
+$viewerUrl = "https://${LanIp}:8889/live/iphone-001"
 
 try {
     Write-Host "[1/7] WSL/Dockerを確認します: $($context.RepoPath)"
@@ -51,6 +53,7 @@ try {
 
     Write-Host "[4/7] 検証用CAと ${LanIp} 向けサーバー証明書を生成します。"
     Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile run --rm cert-generator" | Out-Null
+    Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile run --rm --no-deps --entrypoint qrencode cert-generator -o /work/public/publish-qr.png -s 8 -m 4 '$publishUrl'" | Out-Null
 
     if (-not $SkipFirewall) {
         Write-Host '[5/7] Windows FirewallをLocalSubnet限定で一時開放します。'
@@ -82,16 +85,19 @@ Firewallとコンテナはfinallyで自動的に元へ戻します。
     Write-Host 'スマートフォンWebRTC検証環境を起動しました。' -ForegroundColor Green
     Write-Host "LAN IP              : $LanIp"
     Write-Host "CA取得URL            : http://${LanIp}:8000/rootCA.pem"
-    Write-Host "WebRTC publish URL   : https://${LanIp}:8889/live/iphone-001/publish"
-    Write-Host "WebRTC viewer URL    : https://${LanIp}:8889/live/iphone-001"
+    Write-Host "WebRTC publish URL   : $publishUrl"
+    Write-Host "WebRTC viewer URL    : $viewerUrl"
     Write-Host 'publisher user       : poc-publisher'
     Write-Host 'publisher password   : poc-publisher-pass'
+    Write-Host ''
+    Write-Host 'Publish URLのQRコードをPCのブラウザで表示します。'
+    Start-Process 'http://127.0.0.1:8000/publish-qr.png'
     Write-Host ''
     Write-Host 'iPhone初回のみ:'
     Write-Host '  1. CA取得URLをSafariで開いてrootCA.pemを取得'
     Write-Host '  2. 設定 > ダウンロード済みのプロファイル からCAをインストール'
     Write-Host '  3. 設定 > 一般 > 情報 > 証明書信頼設定 で完全な信頼を有効化'
-    Write-Host '  4. WebRTC publish URLを開き、Basic認証とカメラ権限を許可'
+    Write-Host '  4. QRコードからWebRTC publish URLを開き、Basic認証とカメラ権限を許可'
     Write-Host ''
     Write-Host '停止するとFirewallルールとコンテナを自動で削除します。' -ForegroundColor Yellow
     Write-Host 'CAとサーバー証明書は次回再利用するため tmp/smartphone/ に残します。完全削除は cleanup.ps1 を使用します。'
