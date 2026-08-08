@@ -6,7 +6,7 @@ services:
     image: mediamtx-playground-smartphone-cert:local
     user: "${SMARTPHONE_UID:-1000}:${SMARTPHONE_GID:-1000}"
     environment:
-      SMARTPHONE_LAN_IP: "${SMARTPHONE_LAN_IP:?SMARTPHONE_LAN_IP is required}"
+      SMARTPHONE_LAN_IP: "${SMARTPHONE_LAN_IP:-127.0.0.1}"
     volumes:
       - ../tmp/smartphone/certs:/work/certs
       - ../tmp/smartphone/public:/work/public
