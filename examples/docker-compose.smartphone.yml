@@ -1,0 +1,38 @@
+services:
+  cert-generator:
+    build:
+      context: ..
+      dockerfile: docker/smartphone-cert/Dockerfile
+    image: mediamtx-playground-smartphone-cert:local
+    environment:
+      SMARTPHONE_LAN_IP: ${SMARTPHONE_LAN_IP:-127.0.0.1}
+    volumes:
+      - ../tmp/smartphone/certs:/work/certs
+      - ../tmp/smartphone/public:/work/public
+      - ../tmp/smartphone/generated:/work/generated
+      - ./mediamtx.smartphone.example.yml:/templates/mediamtx.smartphone.example.yml:ro
+
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    container_name: mediamtx-smartphone
+    restart: unless-stopped
+    volumes:
+      - ../tmp/smartphone/generated/mediamtx.yml:/mediamtx.yml:ro
+      - ../tmp/smartphone/certs:/certs:ro
+      - ../scripts/poc/hooks:/hooks:ro
+    ports:
+      - "8554:8554"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+      - "127.0.0.1:9997:9997"
+
+  cert-server:
+    image: busybox:1.36
+    container_name: mediamtx-smartphone-ca
+    restart: unless-stopped
+    command: ["httpd", "-f", "-p", "80", "-h", "/public"]
+    volumes:
+      - ../tmp/smartphone/public:/public:ro
+    ports:
+      - "8000:80"
