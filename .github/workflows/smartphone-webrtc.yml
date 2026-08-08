@@ -73,7 +73,7 @@ jobs:
       - name: Verify CA reuse
         run: |
           docker compose -f examples/docker-compose.smartphone.yml run --rm cert-generator
-          (cd / && sha256sum -c /tmp/root-ca.sha256)
+          sha256sum -c /tmp/root-ca.sha256
 
       - name: Start MediaMTX and CA server
         run: docker compose -f examples/docker-compose.smartphone.yml up -d mediamtx cert-server
