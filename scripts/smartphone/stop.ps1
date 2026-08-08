@@ -17,15 +17,21 @@ if (-not $SkipFirewall -and -not (Test-IsAdministrator)) {
     exit $process.ExitCode
 }
 
-$repositoryRoot = Get-SmartphoneRepositoryRoot
-$context = Get-WslRepositoryContext -RepositoryRoot $repositoryRoot -Distro $Distro
-
 Write-Host 'MediaMTXスマートフォン検証環境を停止します。'
-Invoke-WslRepositoryCommand -Context $context -Command 'docker compose -f examples/docker-compose.smartphone.yml down --remove-orphans' -IgnoreExitCode | Out-Null
 
-if (-not $SkipFirewall) {
-    Remove-SmartphoneFirewallRules
-    Write-Host 'Windows Firewallの一時ルールを削除しました。'
+try {
+    $repositoryRoot = Get-SmartphoneRepositoryRoot
+    $context = Get-WslRepositoryContext -RepositoryRoot $repositoryRoot -Distro $Distro
+    Invoke-WslRepositoryCommand -Context $context -Command 'docker compose -f examples/docker-compose.smartphone.yml down --remove-orphans' -IgnoreExitCode | Out-Null
+}
+catch {
+    Write-Warning "Docker Compose停止処理でエラーが発生しました: $($_.Exception.Message)"
+}
+finally {
+    if (-not $SkipFirewall) {
+        Remove-SmartphoneFirewallRules
+        Write-Host 'Windows Firewallの一時ルールを削除しました。'
+    }
 }
 
 Write-Host '停止処理が完了しました。証明書は tmp/smartphone/ に残っています。' -ForegroundColor Green
