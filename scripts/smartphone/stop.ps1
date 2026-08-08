@@ -21,10 +21,7 @@ $repositoryRoot = Get-SmartphoneRepositoryRoot
 $context = Get-WslRepositoryContext -RepositoryRoot $repositoryRoot -Distro $Distro
 
 Write-Host 'MediaMTXスマートフォン検証環境を停止します。'
-Invoke-WslRepositoryCommand \
-    -Context $context \
-    -Command 'docker compose -f examples/docker-compose.smartphone.yml down --remove-orphans' \
-    -IgnoreExitCode | Out-Null
+Invoke-WslRepositoryCommand -Context $context -Command 'docker compose -f examples/docker-compose.smartphone.yml down --remove-orphans' -IgnoreExitCode | Out-Null
 
 if (-not $SkipFirewall) {
     Remove-SmartphoneFirewallRules
