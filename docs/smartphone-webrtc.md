@@ -86,7 +86,7 @@ Firewallを自分で管理したい場合のみ:
 1. WSL内のDocker / Docker Compose利用可否を確認
 2. 前回異常終了時に残った同名FirewallルールとCompose stackを掃除
 3. `cert-generator` をbuild
-4. WSLユーザーのUID/GIDで `tmp/smartphone/` に検証用CA・LAN IP向けサーバー証明書を生成
+4. WSLユーザーのUID/GIDで `tmp/smartphone/` の検証用CAを準備し、LAN IP向けサーバー証明書を生成
 5. Windows FirewallをLocalSubnet限定で一時開放
    - TCP 8000: CA証明書取得
    - TCP 8889: HTTPS WebRTC signaling / WHIP
@@ -123,7 +123,7 @@ WebRTC publish URL : https://<PC-LAN-IP>:8889/live/iphone-001/publish
    - password: `poc-publisher-pass`
 6. カメラ・マイク利用を許可
 
-CAを一度信頼すれば、同じ `tmp/smartphone/certs/ca` を使う限り次回の `start.ps1` でも再利用できる。LAN IPが変わった場合は、そのCAを維持したままサーバー証明書だけ新しいIP向けに再生成する。
+CAを一度信頼すれば、同じ `tmp/smartphone/certs/ca` を使う限り次回の `start.ps1` でも再利用できる。サーバー証明書は `start.ps1` 実行時に、そのCAを使って現在のLAN IP向けに生成する。
 
 ## 配信確認
 
