@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 $script:SmartphoneTcpRuleName = 'MediaMTX Smartphone Test TCP'
 $script:SmartphoneUdpRuleName = 'MediaMTX Smartphone Test UDP'
