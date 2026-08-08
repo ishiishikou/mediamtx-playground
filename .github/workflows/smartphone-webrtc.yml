@@ -14,6 +14,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  powershell51-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate UTF-8 BOM and Windows PowerShell 5.1 syntax
+        shell: powershell
+        run: |
+          $failed = $false
+          Get-ChildItem scripts/smartphone/*.ps1 | ForEach-Object {
+            $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+            if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+              Write-Host "UTF-8 BOM is required for Windows PowerShell 5.1: $($_.FullName)"
+              $failed = $true
+            }
+
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) > $null
+            if ($errors.Count -gt 0) {
+              Write-Host "Windows PowerShell parse error: $($_.FullName)"
+              $errors | Format-List
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
   validate:
     runs-on: ubuntu-latest
     env:
