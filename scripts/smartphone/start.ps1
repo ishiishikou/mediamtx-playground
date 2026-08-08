@@ -51,7 +51,7 @@ try {
     Invoke-WslRepositoryCommand -Context $context -Command 'mkdir -p tmp/smartphone/certs/ca tmp/smartphone/public tmp/smartphone/generated' | Out-Null
     Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile build cert-generator" | Out-Null
 
-    Write-Host "[4/7] 検証用CAと ${LanIp} 向けサーバー証明書を生成します。"
+    Write-Host "[4/7] 検証用CAを準備し、${LanIp} 向けサーバー証明書を生成します。"
     Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile run --rm cert-generator" | Out-Null
     Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile run --rm --no-deps --entrypoint qrencode cert-generator -o /work/public/publish-qr.png -s 8 -m 4 '$publishUrl'" | Out-Null
 
@@ -100,7 +100,7 @@ Firewallとコンテナはfinallyで自動的に元へ戻します。
     Write-Host '  4. QRコードからWebRTC publish URLを開き、Basic認証とカメラ権限を許可'
     Write-Host ''
     Write-Host '停止するとFirewallルールとコンテナを自動で削除します。' -ForegroundColor Yellow
-    Write-Host 'CAとサーバー証明書は次回再利用するため tmp/smartphone/ に残します。完全削除は cleanup.ps1 を使用します。'
+    Write-Host 'CAは次回再利用するため tmp/smartphone/ に残します。完全削除は cleanup.ps1 を使用します。'
     Write-Host ''
 
     Read-Host '停止するには Enter を押してください（Ctrl+Cでもfinallyで停止処理を実行します）' | Out-Null
