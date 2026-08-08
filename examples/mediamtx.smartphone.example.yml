@@ -1,0 +1,61 @@
+# Smartphone WebRTC verification configuration.
+# Generated local values are written under tmp/ and are not committed.
+
+logLevel: info
+
+api: yes
+apiAddress: :9997
+
+rtsp: yes
+rtspAddress: :8554
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: false
+hlsVariant: lowLatency
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: yes
+webrtcServerKey: /certs/server.key
+webrtcServerCert: /certs/server.crt
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts:
+  - "__SMARTPHONE_LAN_IP__"
+
+authMethod: internal
+authInternalUsers:
+  - user: poc-publisher
+    pass: poc-publisher-pass
+    ips: []
+    permissions:
+      - action: publish
+        path: "~^live/.+$"
+
+  - user: poc-viewer
+    pass: poc-viewer-pass
+    ips: []
+    permissions:
+      - action: read
+        path: "~^live/.+$"
+      - action: playback
+        path: "~^live/.+$"
+
+  # Control API is bound to 127.0.0.1 on the Windows host by Compose.
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: api
+
+pathDefaults:
+  source: publisher
+
+paths:
+  "~^live/.+$":
+    source: publisher
+    runOnReady: "sh /hooks/log-ready.sh"
+    runOnReadyRestart: no
+    runOnNotReady: "sh /hooks/log-not-ready.sh"
+
+  all_others:
