@@ -33,36 +33,50 @@ Assert-IPv4Address -Address $LanIp
 $composeFile = 'examples/docker-compose.smartphone.yml'
 $composeStarted = $false
 $firewallAdded = $false
+$composeEnv = 'export SMARTPHONE_LAN_IP=' + $LanIp + '; export SMARTPHONE_UID=$(id -u); export SMARTPHONE_GID=$(id -g); '
 
 try {
-    Write-Host "[1/6] WSL/Dockerを確認します: $($context.RepoPath)"
+    Write-Host "[1/7] WSL/Dockerを確認します: $($context.RepoPath)"
     Invoke-WslRepositoryCommand -Context $context -Command 'docker version >/dev/null && docker compose version >/dev/null' | Out-Null
 
-    Write-Host '[2/6] 前回のコンテナとFirewallルールを掃除します。'
-    Invoke-WslRepositoryCommand -Context $context -Command "docker compose -f $composeFile down --remove-orphans >/dev/null 2>&1 || true" -IgnoreExitCode | Out-Null
+    Write-Host '[2/7] 前回のコンテナとFirewallルールを掃除します。'
+    Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile down --remove-orphans >/dev/null 2>&1 || true" -IgnoreExitCode | Out-Null
     if (-not $SkipFirewall) {
         Remove-SmartphoneFirewallRules
     }
 
-    Write-Host '[3/6] mkcertコンテナを準備します。'
-    Invoke-WslRepositoryCommand -Context $context -Command 'mkdir -p tmp/smartphone/certs tmp/smartphone/public tmp/smartphone/generated' | Out-Null
-    Invoke-WslRepositoryCommand -Context $context -Command "docker compose -f $composeFile build cert-generator" | Out-Null
+    Write-Host '[3/7] mkcertコンテナを準備します。'
+    Invoke-WslRepositoryCommand -Context $context -Command 'mkdir -p tmp/smartphone/certs/ca tmp/smartphone/public tmp/smartphone/generated' | Out-Null
+    Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile build cert-generator" | Out-Null
 
-    Write-Host "[4/6] 検証用CAと ${LanIp} 向けサーバー証明書を生成します。"
-    Invoke-WslRepositoryCommand -Context $context -Command "SMARTPHONE_LAN_IP=$LanIp docker compose -f $composeFile run --rm cert-generator" | Out-Null
+    Write-Host "[4/7] 検証用CAと ${LanIp} 向けサーバー証明書を生成します。"
+    Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile run --rm cert-generator" | Out-Null
 
     if (-not $SkipFirewall) {
-        Write-Host '[5/6] Windows FirewallをLocalSubnet限定で一時開放します。'
+        Write-Host '[5/7] Windows FirewallをLocalSubnet限定で一時開放します。'
         Add-SmartphoneFirewallRules
         $firewallAdded = $true
     }
     else {
-        Write-Host '[5/6] -SkipFirewall が指定されたためFirewall設定を変更しません。'
+        Write-Host '[5/7] -SkipFirewall が指定されたためFirewall設定を変更しません。'
     }
 
-    Write-Host '[6/6] MediaMTXとCA配信サーバーを起動します。'
-    Invoke-WslRepositoryCommand -Context $context -Command "docker compose -f $composeFile up -d mediamtx cert-server" | Out-Null
+    Write-Host '[6/7] MediaMTXとCA配信サーバーを起動します。'
+    Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile up -d mediamtx cert-server" | Out-Null
     $composeStarted = $true
+
+    Write-Host '[7/7] WindowsのLAN IP経由でTCP疎通を確認します。'
+    Start-Sleep -Seconds 1
+    $caReady = Test-NetConnection -ComputerName $LanIp -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue
+    $httpsReady = Test-NetConnection -ComputerName $LanIp -Port 8889 -InformationLevel Quiet -WarningAction SilentlyContinue
+    if (-not $caReady -or -not $httpsReady) {
+        throw @"
+WindowsのLAN IP ($LanIp) からDocker公開ポートへ到達できませんでした。
+Docker DesktopのWSL 2 integrationを利用している場合はDocker Desktopが起動しているか確認してください。
+WSL内に独立してDocker Engineを入れている場合、既定のWSL NATではLANからWSLへ直接到達できないため、WSL mirrored networking等の追加設定が必要です。
+Firewallとコンテナはfinallyで自動的に元へ戻します。
+"@
+    }
 
     Write-Host ''
     Write-Host 'スマートフォンWebRTC検証環境を起動しました。' -ForegroundColor Green
@@ -83,13 +97,13 @@ try {
     Write-Host 'CAとサーバー証明書は次回再利用するため tmp/smartphone/ に残します。完全削除は cleanup.ps1 を使用します。'
     Write-Host ''
 
-    Read-Host '停止するには Enter を押してください（Ctrl+Cでも停止できます）' | Out-Null
+    Read-Host '停止するには Enter を押してください（Ctrl+Cでもfinallyで停止処理を実行します）' | Out-Null
 }
 finally {
     Write-Host ''
     Write-Host 'スマートフォンWebRTC検証環境を停止します。'
     try {
-        Invoke-WslRepositoryCommand -Context $context -Command "docker compose -f $composeFile down --remove-orphans" -IgnoreExitCode | Out-Null
+        Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile down --remove-orphans" -IgnoreExitCode | Out-Null
     }
     catch {
         Write-Warning "Docker Compose停止処理でエラーが発生しました: $($_.Exception.Message)"
