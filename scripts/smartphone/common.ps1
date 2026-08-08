@@ -21,17 +21,19 @@ function Get-WslRepositoryContext {
     )
 
     if ($RepositoryRoot -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.+)$') {
-        if ([string]::IsNullOrWhiteSpace($Distro)) {
-            $Distro = $Matches[1]
+        $detectedDistro = $Matches[1]
+        if (-not [string]::IsNullOrWhiteSpace($Distro) -and $Distro -ne $detectedDistro) {
+            throw "リポジトリはWSL distro '$detectedDistro' にありますが、-Distro '$Distro' が指定されました。"
         }
+        $Distro = $detectedDistro
         $linuxPath = '/' + ($Matches[2] -replace '\\', '/')
     }
     else {
         $args = @()
         if (-not [string]::IsNullOrWhiteSpace($Distro)) {
-            $args += @('-d', $Distro)
+            $args += @('--distribution', $Distro)
         }
-        $args += @('-e', 'wslpath', '-a', '-u', $RepositoryRoot)
+        $args += @('--exec', 'wslpath', '-a', '-u', $RepositoryRoot)
         $linuxPath = (& wsl.exe @args | Select-Object -First 1).Trim()
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxPath)) {
             throw "WSL内のリポジトリパスへ変換できませんでした: $RepositoryRoot"
@@ -44,6 +46,11 @@ function Get-WslRepositoryContext {
     }
 }
 
+function ConvertTo-BashSingleQuoted {
+    param([Parameter(Mandatory = $true)][string]$Value)
+    return "'" + $Value.Replace("'", "'\"'\"'") + "'"
+}
+
 function Invoke-WslRepositoryCommand {
     param(
         [Parameter(Mandatory = $true)]$Context,
@@ -51,11 +58,14 @@ function Invoke-WslRepositoryCommand {
         [switch]$IgnoreExitCode
     )
 
+    $repoPath = ConvertTo-BashSingleQuoted -Value $Context.RepoPath
+    $fullCommand = "cd $repoPath && $Command"
+
     $args = @()
     if (-not [string]::IsNullOrWhiteSpace($Context.Distro)) {
-        $args += @('-d', $Context.Distro)
+        $args += @('--distribution', $Context.Distro)
     }
-    $args += @('--cd', $Context.RepoPath, '-e', 'bash', '-lc', $Command)
+    $args += @('--exec', 'bash', '-lc', $fullCommand)
 
     & wsl.exe @args
     $exitCode = $LASTEXITCODE
@@ -70,7 +80,8 @@ function Get-PreferredLanIPv4 {
         Where-Object {
             $_.NetAdapter.Status -eq 'Up' -and
             $null -ne $_.IPv4DefaultGateway -and
-            $null -ne $_.IPv4Address
+            $null -ne $_.IPv4Address -and
+            $_.InterfaceAlias -notmatch 'vEthernet|WSL|Docker|Loopback|Tailscale|ZeroTier'
         }
 
     $candidates = foreach ($config in $configs) {
