@@ -37,13 +37,13 @@ services:
       - perfnet
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: ghcr.io/google/cadvisor:v0.60.5
     container_name: mediamtx-poc-cadvisor
     profiles: ["monitoring"]
     privileged: true
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
+      - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
@@ -74,8 +74,12 @@ services:
       PERF_HEADLESS: "1"
       PERF_ONLY_SCENARIOS: ""
       PERF_APP_URL: ""
+      PERF_RESOURCE_BACKEND: "auto"
+      DOCKER_SOCKET: /var/run/docker.sock
+      DOCKER_CONTAINER: mediamtx-poc
     volumes:
       - ../tmp:/workspace/tmp
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 networks:
   perfnet: {}
