@@ -46,11 +46,6 @@ function Get-WslRepositoryContext {
     }
 }
 
-function ConvertTo-BashSingleQuoted {
-    param([Parameter(Mandatory = $true)][string]$Value)
-    return "'" + $Value.Replace("'", "'\"'\"'") + "'"
-}
-
 function Invoke-WslRepositoryCommand {
     param(
         [Parameter(Mandatory = $true)]$Context,
@@ -58,14 +53,11 @@ function Invoke-WslRepositoryCommand {
         [switch]$IgnoreExitCode
     )
 
-    $repoPath = ConvertTo-BashSingleQuoted -Value $Context.RepoPath
-    $fullCommand = "cd $repoPath && $Command"
-
     $args = @()
     if (-not [string]::IsNullOrWhiteSpace($Context.Distro)) {
         $args += @('--distribution', $Context.Distro)
     }
-    $args += @('--exec', 'bash', '-lc', $fullCommand)
+    $args += @('--cd', $Context.RepoPath, '--exec', 'bash', '-lc', $Command)
 
     & wsl.exe @args
     $exitCode = $LASTEXITCODE
