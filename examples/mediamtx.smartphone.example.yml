@@ -44,12 +44,13 @@ authInternalUsers:
       - action: playback
         path: "~^live/.+$"
 
-  # Control API itself is published only on 127.0.0.1 by Docker Compose.
+  # Control API / metrics are published only on 127.0.0.1 by Docker Compose.
   - user: any
     pass:
     ips: []
     permissions:
       - action: api
+      - action: metrics
 
 pathDefaults:
   source: publisher
@@ -57,8 +58,8 @@ pathDefaults:
 paths:
   "~^live/.+$":
     source: publisher
-    runOnReady: "sh /hooks/log-ready.sh"
-    runOnReadyRestart: no
-    runOnNotReady: "sh /hooks/log-not-ready.sh"
+    runOnAvailable: "sh /hooks/log-ready.sh"
+    runOnAvailableRestart: no
+    runOnUnavailable: "sh /hooks/log-not-ready.sh"
 
   all_others:
