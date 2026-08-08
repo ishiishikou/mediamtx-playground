@@ -19,7 +19,8 @@ services:
     restart: "no"
     volumes:
       - ../tmp/smartphone/generated/mediamtx.yml:/mediamtx.yml:ro
-      - ../tmp/smartphone/certs:/certs:ro
+      - ../tmp/smartphone/certs/server.crt:/certs/server.crt:ro
+      - ../tmp/smartphone/certs/server.key:/certs/server.key:ro
       - ../scripts/poc/hooks:/hooks:ro
     ports:
       - "127.0.0.1:8554:8554"
