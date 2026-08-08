@@ -48,7 +48,9 @@ jobs:
           echo "SMARTPHONE_GID=$(id -g)" >> "$GITHUB_ENV"
 
       - name: Validate compose configuration
-        run: docker compose -f examples/docker-compose.smartphone.yml config
+        run: |
+          grep -q '^name: mediamtx-smartphone$' examples/docker-compose.smartphone.yml
+          docker compose -f examples/docker-compose.smartphone.yml config
 
       - name: Build certificate generator
         run: docker compose -f examples/docker-compose.smartphone.yml build cert-generator
