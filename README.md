@@ -69,17 +69,14 @@ docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
   build load-runner
-
 docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
   up -d mediamtx prometheus cadvisor
-
 docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
   run --rm load-runner
-
 docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
@@ -128,9 +125,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass \
   -File "$(wslpath -w scripts/smartphone/start.ps1)"
 ```
 
-必要に応じてUACで管理者権限へ昇格した後、LAN IP検出、検証用CA/サーバー証明書生成、Firewall設定、MediaMTX起動まで自動で行います。終了は起動したPowerShellで `Ctrl+C` を押します。Compose stackとFirewallルールは自動削除し、CAは短期検証中の再利用のため `tmp/smartphone/` に残します。
+必要に応じてUACで管理者権限へ昇格した後、LAN IP検出、検証用CA/サーバー証明書生成、Firewall設定、MediaMTX起動、Windows LAN IP経由のTCP疎通確認まで自動で行います。終了は起動したPowerShellでEnterまたは `Ctrl+C`。Compose stackとFirewallルールは `finally` で自動削除し、CAは短期検証中の再利用のため `tmp/smartphone/` に残します。
 
 PCへmkcertやOpenSSLを追加インストールする必要はありません。iPhone/Android側では初回のみ `rootCA.pem` のインストールと信頼設定が必要です。
+
+Docker DesktopのWSL 2 integrationを推奨します。WSL内へ独立してDocker Engineを導入している場合、既定のWSL NATではLANからWSLへ直接到達できないことがあるため、mirrored networking等の追加設定が必要になる場合があります。詳細は手順書を参照してください。
 
 ## ディレクトリ構成
 
