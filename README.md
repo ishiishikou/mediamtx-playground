@@ -69,17 +69,14 @@ docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
   build load-runner
-
 docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
   up -d mediamtx prometheus cadvisor
-
 docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
   run --rm load-runner
-
 docker compose \
   -f examples/docker-compose.load.yml \
   -f examples/docker-compose.monitoring.yml \
@@ -111,6 +108,28 @@ docker compose -f examples/docker-compose.performance.yml --profile monitoring d
 Prometheus / cAdvisorを起動しない場合でも配信試験は実行できますが、MediaMTXコンテナのCPU・メモリ・通信量列は空欄になります。
 
 実動画、実環境URL、認証情報、測定ログは`tmp/`や`.env`へ分離し、public repositoryへ登録しません。
+
+## スマートフォン実機からWebRTC publish
+
+Windows + WSL2 + Docker DesktopのPCと同一LAN上のスマートフォンから、実カメラ映像をHTTPS/WebRTCでMediaMTXへpublishできます。証明書はDocker内のmkcertで生成し、Windows Firewallは検証中だけLocalSubnetへ開放します。
+
+- [スマートフォン実機からWebRTC publishする手順](docs/smartphone-webrtc.md)
+- 起動スクリプト: `scripts/smartphone/start.ps1`
+- 停止スクリプト: `scripts/smartphone/stop.ps1`
+- 完全削除: `scripts/smartphone/cleanup.ps1`
+
+WSLのリポジトリ直下から起動する例:
+
+```bash
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File "$(wslpath -w scripts/smartphone/start.ps1)"
+```
+
+必要に応じてUACで管理者権限へ昇格した後、LAN IP検出、検証用CA/サーバー証明書生成、Firewall設定、MediaMTX起動、Windows LAN IP経由のTCP疎通確認まで自動で行います。終了は起動したPowerShellでEnterまたは `Ctrl+C`。Compose stackとFirewallルールは `finally` で自動削除し、CAは短期検証中の再利用のため `tmp/smartphone/` に残します。
+
+PCへmkcertやOpenSSLを追加インストールする必要はありません。iPhone/Android側では初回のみ `rootCA.pem` のインストールと信頼設定が必要です。
+
+Docker DesktopのWSL 2 integrationを推奨します。WSL内へ独立してDocker Engineを導入している場合、既定のWSL NATではLANからWSLへ直接到達できないことがあるため、mirrored networking等の追加設定が必要になる場合があります。詳細は手順書を参照してください。
 
 ## ディレクトリ構成
 

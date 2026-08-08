@@ -23,3 +23,13 @@ Use these files for real values. They are ignored by Git.
 - `.env`
 - `mediamtx.local.yml`
 - `docker-compose.override.yml`
+- `tmp/smartphone/`
+
+## Smartphone WebRTC verification CA
+
+`scripts/smartphone/start.ps1` generates a temporary local CA under `tmp/smartphone/certs/ca/` for short-lived smartphone verification.
+
+- `rootCA-key.pem` is a CA private key. Never share, upload, or serve it over HTTP.
+- `cert-server` must mount only `tmp/smartphone/public/`, which contains the public `rootCA.pem` copy.
+- Remove the local CA files with `scripts/smartphone/cleanup.ps1` after verification is complete.
+- Remove the installed CA profile manually from the smartphone after verification is complete.

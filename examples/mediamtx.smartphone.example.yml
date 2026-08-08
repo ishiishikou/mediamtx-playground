@@ -1,0 +1,69 @@
+# Smartphone WebRTC verification configuration.
+# Generated local values are written under tmp/ and are not committed.
+
+logLevel: info
+
+api: yes
+apiAddress: :9997
+
+metrics: yes
+metricsAddress: :9998
+
+rtsp: yes
+rtspAddress: :8554
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: false
+hlsVariant: lowLatency
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: yes
+webrtcServerKey: /certs/server.key
+webrtcServerCert: /certs/server.crt
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts:
+  - "__SMARTPHONE_LAN_IP__"
+
+authMethod: internal
+authInternalUsers:
+  - user: poc-publisher
+    pass: poc-publisher-pass
+    ips: []
+    permissions:
+      - action: publish
+        path: "~^live/.+$"
+      # /<path>/publish のブラウザページを取得するために必要。
+      # 実際のWHIP publish可否は上のpublish権限で別途判定される。
+      - action: playback
+        path: "~^live/.+$"
+
+  - user: poc-viewer
+    pass: poc-viewer-pass
+    ips: []
+    permissions:
+      - action: read
+        path: "~^live/.+$"
+      - action: playback
+        path: "~^live/.+$"
+
+  # Control API / metrics are published only on 127.0.0.1 by Docker Compose.
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: api
+      - action: metrics
+
+pathDefaults:
+  source: publisher
+
+paths:
+  "~^live/.+$":
+    source: publisher
+    runOnAvailable: "sh /hooks/log-ready.sh"
+    runOnAvailableRestart: no
+    runOnUnavailable: "sh /hooks/log-not-ready.sh"
+
+  all_others:

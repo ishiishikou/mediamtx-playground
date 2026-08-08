@@ -1,0 +1,153 @@
+name: Smartphone WebRTC checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/smartphone-webrtc.yml"
+      - "docker/smartphone-cert/**"
+      - "docs/smartphone-webrtc.md"
+      - "examples/docker-compose.smartphone.yml"
+      - "examples/mediamtx.smartphone.example.yml"
+      - "scripts/smartphone/**"
+      - "README.md"
+      - "SECURITY.md"
+  workflow_dispatch:
+
+jobs:
+  powershell51-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate UTF-8 BOM and Windows PowerShell 5.1 syntax
+        shell: powershell
+        run: |
+          $failed = $false
+          Get-ChildItem scripts/smartphone/*.ps1 | ForEach-Object {
+            $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+            if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+              Write-Host "UTF-8 BOM is required for Windows PowerShell 5.1: $($_.FullName)"
+              $failed = $true
+            }
+
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) > $null
+            if ($errors.Count -gt 0) {
+              Write-Host "Windows PowerShell parse error: $($_.FullName)"
+              $errors | Format-List
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      SMARTPHONE_LAN_IP: 192.0.2.10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell and PowerShell syntax
+        shell: bash
+        run: |
+          sh -n scripts/smartphone/generate-assets.sh
+          pwsh -NoProfile -Command '
+            $failed = $false
+            Get-ChildItem scripts/smartphone/*.ps1 | ForEach-Object {
+              $tokens = $null
+              $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) > $null
+              if ($errors.Count -gt 0) {
+                Write-Host "PowerShell parse error: $($_.FullName)"
+                $errors | Format-List
+                $failed = $true
+              }
+            }
+            if ($failed) { exit 1 }
+          '
+
+      - name: Prepare output directories and uid
+        run: |
+          mkdir -p tmp/smartphone/certs/ca tmp/smartphone/public tmp/smartphone/generated
+          echo "SMARTPHONE_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "SMARTPHONE_GID=$(id -g)" >> "$GITHUB_ENV"
+
+      - name: Validate compose configuration
+        run: |
+          grep -q '^name: mediamtx-smartphone$' examples/docker-compose.smartphone.yml
+          docker compose -f examples/docker-compose.smartphone.yml config
+
+      - name: Build certificate generator
+        run: docker compose -f examples/docker-compose.smartphone.yml build cert-generator
+
+      - name: Generate temporary CA and server certificate
+        run: docker compose -f examples/docker-compose.smartphone.yml run --rm cert-generator
+
+      - name: Generate publish QR code
+        run: |
+          docker compose -f examples/docker-compose.smartphone.yml run --rm --no-deps \
+            --entrypoint qrencode cert-generator \
+            -o /work/public/publish-qr.png -s 8 -m 4 \
+            'https://192.0.2.10:8889/live/iphone-001/publish'
+          test -s tmp/smartphone/public/publish-qr.png
+
+      - name: Validate generated assets
+        run: |
+          test -s tmp/smartphone/certs/ca/rootCA.pem
+          test -s tmp/smartphone/certs/ca/rootCA-key.pem
+          test -s tmp/smartphone/certs/server.crt
+          test -s tmp/smartphone/certs/server.key
+          test -s tmp/smartphone/public/rootCA.pem
+          test -s tmp/smartphone/public/publish-qr.png
+          test -s tmp/smartphone/generated/mediamtx.yml
+          test ! -e tmp/smartphone/public/rootCA-key.pem
+          cmp tmp/smartphone/certs/ca/rootCA.pem tmp/smartphone/public/rootCA.pem
+          grep -q '192.0.2.10' tmp/smartphone/generated/mediamtx.yml
+          openssl x509 -in tmp/smartphone/certs/server.crt -noout -text | grep -q 'IP Address:192.0.2.10'
+          sha256sum tmp/smartphone/certs/ca/rootCA.pem > /tmp/root-ca.sha256
+
+      - name: Verify CA reuse
+        run: |
+          docker compose -f examples/docker-compose.smartphone.yml run --rm cert-generator
+          sha256sum -c /tmp/root-ca.sha256
+
+      - name: Start MediaMTX and CA server
+        run: docker compose -f examples/docker-compose.smartphone.yml up -d mediamtx cert-server
+
+      - name: Verify HTTPS and CA download
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8000/rootCA.pem -o /tmp/rootCA.pem; then
+              break
+            fi
+            sleep 1
+          done
+          cmp tmp/smartphone/public/rootCA.pem /tmp/rootCA.pem
+          curl -fsS http://127.0.0.1:8000/publish-qr.png -o /tmp/publish-qr.png
+          test -s /tmp/publish-qr.png
+
+          for i in $(seq 1 20); do
+            if curl -fsS \
+              --cacert tmp/smartphone/public/rootCA.pem \
+              -u poc-publisher:poc-publisher-pass \
+              https://127.0.0.1:8889/live/ci/publish \
+              -o /tmp/publish.html; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/publish.html
+          curl -fsS http://127.0.0.1:9997/v3/paths/list >/tmp/paths.json
+          curl -fsS http://127.0.0.1:9998/metrics >/tmp/metrics.txt
+          cat /tmp/paths.json
+
+      - name: Show logs
+        if: always()
+        run: docker compose -f examples/docker-compose.smartphone.yml logs mediamtx cert-server || true
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f examples/docker-compose.smartphone.yml down -v --remove-orphans || true
