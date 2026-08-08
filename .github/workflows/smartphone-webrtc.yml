@@ -41,8 +41,11 @@ jobs:
             if ($failed) { exit 1 }
           '
 
-      - name: Prepare output directories
-        run: mkdir -p tmp/smartphone/certs tmp/smartphone/public tmp/smartphone/generated
+      - name: Prepare output directories and uid
+        run: |
+          mkdir -p tmp/smartphone/certs/ca tmp/smartphone/public tmp/smartphone/generated
+          echo "SMARTPHONE_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "SMARTPHONE_GID=$(id -g)" >> "$GITHUB_ENV"
 
       - name: Validate compose configuration
         run: docker compose -f examples/docker-compose.smartphone.yml config
@@ -65,6 +68,12 @@ jobs:
           cmp tmp/smartphone/certs/ca/rootCA.pem tmp/smartphone/public/rootCA.pem
           grep -q '192.0.2.10' tmp/smartphone/generated/mediamtx.yml
           openssl x509 -in tmp/smartphone/certs/server.crt -noout -text | grep -q 'IP Address:192.0.2.10'
+          sha256sum tmp/smartphone/certs/ca/rootCA.pem > /tmp/root-ca.sha256
+
+      - name: Verify CA reuse
+        run: |
+          docker compose -f examples/docker-compose.smartphone.yml run --rm cert-generator
+          (cd / && sha256sum -c /tmp/root-ca.sha256)
 
       - name: Start MediaMTX and CA server
         run: docker compose -f examples/docker-compose.smartphone.yml up -d mediamtx cert-server
@@ -91,6 +100,7 @@ jobs:
           done
           test -s /tmp/publish.html
           curl -fsS http://127.0.0.1:9997/v3/paths/list >/tmp/paths.json
+          curl -fsS http://127.0.0.1:9998/metrics >/tmp/metrics.txt
           cat /tmp/paths.json
 
       - name: Show logs
