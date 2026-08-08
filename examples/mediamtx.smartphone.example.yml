@@ -6,6 +6,9 @@ logLevel: info
 api: yes
 apiAddress: :9997
 
+metrics: yes
+metricsAddress: :9998
+
 rtsp: yes
 rtspAddress: :8554
 
@@ -41,7 +44,7 @@ authInternalUsers:
       - action: playback
         path: "~^live/.+$"
 
-  # Control API is bound to 127.0.0.1 on the Windows host by Compose.
+  # Control API itself is published only on 127.0.0.1 by Docker Compose.
   - user: any
     pass:
     ips: []
