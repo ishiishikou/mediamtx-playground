@@ -6,6 +6,8 @@ Windows + WSL2 上のMediaMTXへ、同一LAN内のスマートフォンブラウ
 
 短期の検証用途に限定し、PCへmkcertやOpenSSLなどを追加インストールしない。証明書生成はDockerコンテナ内で行い、Windows Firewallの一時ルールも検証終了時に削除する。
 
+通常の同一LANだけでなく、構築済みPCをインターネットから切断し、Windowsのモバイルホットスポットへスマートフォンを直接接続する完全オフライン構成でも検証できる。
+
 ## 構成
 
 ```text
@@ -21,6 +23,24 @@ Windows / WSL2
   ├─ cert-server     rootCA.pemだけHTTP配信
   └─ mediamtx        HTTPS WebRTC + RTSP
 ```
+
+インターネットから切断したモバイルホットスポット構成では、通信経路は次のようになる。
+
+```text
+Internet
+   × 未接続
+
+Windows PC
+  ├─ WSL2 / Docker Desktop / MediaMTX
+  └─ Windows Mobile Hotspot
+              │ local Wi-Fi
+              │
+         Smartphone
+              ├─ HTTPS :8889 signaling / WHIP
+              └─ UDP   :8189 WebRTC media
+```
+
+WebRTCのシグナリングとメディア通信はPCとスマートフォンのローカル通信だけで成立する。外部STUN/TURNはこの検証構成では使用しない。
 
 ## PC側の前提
 
@@ -69,6 +89,8 @@ WSL側リポジトリを `\\wsl.localhost\<distro>\...` で開き、次を実行
 
 上の `192.0.2.10` はドキュメント用の例であり、実行時は自分のPCのLAN IPを指定する。
 
+インターネット未接続でWindowsモバイルホットスポットだけが有効な場合、`start.ps1` はデフォルトゲートウェイのないホットスポット側プライベートIPv4もフォールバック検出する。候補が複数ある場合は誤選択を避けるため自動決定せず、候補を表示して `-LanIp` の指定を要求する。
+
 WSLディストリビューションを明示する場合:
 
 ```powershell
@@ -80,6 +102,63 @@ Firewallを自分で管理したい場合のみ:
 ```powershell
 .\scripts\smartphone\start.ps1 -SkipFirewall
 ```
+
+## 完全オフラインのモバイルホットスポット構成
+
+### 1. インターネット接続中にDockerイメージを事前準備
+
+完全オフラインで実行する前に一度だけ、必要なDockerイメージを取得し、証明書生成用イメージをbuildする。
+
+WSLのリポジトリ直下から実行する場合:
+
+```bash
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File "$(wslpath -w scripts/smartphone/prepare-offline.ps1)"
+```
+
+Windows PowerShellから実行する場合:
+
+```powershell
+.\scripts\smartphone\prepare-offline.ps1
+```
+
+この処理は以下を事前にキャッシュする。
+
+- `bluenviron/mediamtx:1`
+- `busybox:1.36`
+- `alpine:3.20` と `apk` / `mkcert` を含む `mediamtx-playground-smartphone-cert:local`
+
+`prepare-offline.ps1` 実行後にDockerイメージを削除した場合は、再度インターネット接続中に実行する。
+
+### 2. PCをインターネットから切断
+
+有線LANや通常Wi-Fiなど、外部ネットワークへの接続を切断する。
+
+### 3. Windowsのモバイルホットスポットを有効化
+
+Windowsの「設定」からモバイルホットスポットを有効にし、表示されたSSIDへスマートフォンを接続する。
+
+この状態ではPCにインターネット接続がなくてもよい。スマートフォンとPCがホットスポットのローカルネットワーク内で相互通信できればよい。
+
+### 4. `start.ps1` を起動
+
+```powershell
+.\scripts\smartphone\start.ps1
+```
+
+ホットスポット側IPv4が一意に検出できれば、そのIPを証明書、WebRTC URL、MediaMTXのICE candidate用ホストとして使用する。
+
+複数のプライベートNICなどにより自動判定できない場合は、Windowsで `ipconfig` または `Get-NetIPAddress -AddressFamily IPv4` を確認し、スマートフォンと同一サブネットのPC側IPv4を明示する。
+
+```powershell
+.\scripts\smartphone\start.ps1 -LanIp <hotspot側のPC IPv4>
+```
+
+### 5. スマートフォンからpublish
+
+`start.ps1` が表示するQRコードまたはURLをスマートフォンで開き、CA信頼設定、Basic認証、カメラ権限を許可する。
+
+この構成で測定されるネットワーク特性は「スマートフォンとPC間のローカルWi-Fi」であり、モバイル回線やWAN越しの遅延は含まない。機能確認や基礎性能測定と、本番WAN条件の測定は分けて扱う。
 
 ## start.ps1が行うこと
 
@@ -214,6 +293,7 @@ iPhoneにインストールしたCAプロファイルはiPhone側で手動削除
 - RTSP、HLS、Control API、metricsはWindows hostの127.0.0.1にのみbindする
 - `tmp/`、`*.pem`、`*.key`、`*.crt` はGit管理対象外
 - このCAとexample credentialは短期のローカル検証専用で、本番利用しない
+- モバイルホットスポット使用時も、検証用SSID/パスワードを不用意に共有せず、検証終了後はホットスポットを無効化する
 
 ## トラブルシュート
 
@@ -221,15 +301,22 @@ iPhoneにインストールしたCAプロファイルはiPhone側で手動削除
 
 VPNや複数NICがある場合は `-LanIp` を指定する。
 
+インターネット未接続のホットスポット構成では、ホットスポット側NICまたは一意なプライベートIPv4へフォールバックする。複数候補が表示された場合は、スマートフォンと同一サブネットのIPv4を `-LanIp` で指定する。
+
+### オフラインでDocker image取得エラーになる
+
+インターネット接続中に `prepare-offline.ps1` を実行していない、または準備後にDockerイメージを削除した可能性がある。PCを再度オンラインにして `prepare-offline.ps1` を実行する。
+
 ### start.ps1のTCP疎通確認で失敗する
 
 - Docker Desktopを利用する場合は、Docker Desktopが起動し、対象WSL distroでWSL integrationが有効か確認する
 - WSL内の独立Docker Engineを利用する場合は、WSLのnetworking modeとLANからWSLへの到達性を確認する
 - Windows 11でmirrored networkingを使う場合は、WSL側のHyper-V firewall設定も確認する
+- モバイルホットスポット構成では `-LanIp` がスマートフォンと同一サブネットのPC側IPv4か確認する
 
 ### iPhoneからCA取得URLへ接続できない
 
-- PCとスマートフォンが同じLAN/Wi-Fiにいるか確認
+- PCとスマートフォンが同じLAN/Wi-FiまたはWindowsモバイルホットスポットにいるか確認
 - ゲストWi-FiやAP isolationで端末間通信が禁止されていないか確認
 - `Get-NetFirewallRule -DisplayName 'MediaMTX Smartphone Test*'` で一時ルールを確認
 - Dockerで8000/TCPがpublishされているか確認
@@ -237,7 +324,7 @@ VPNや複数NICがある場合は `-LanIp` を指定する。
 ### HTTPSページは開くが映像が流れない
 
 - 8189/UDPがFirewallで許可されているか確認
-- `tmp/smartphone/generated/mediamtx.yml` の `webrtcAdditionalHosts` がPCのLAN IPか確認
+- `tmp/smartphone/generated/mediamtx.yml` の `webrtcAdditionalHosts` がPCのLAN IPまたはホットスポット側IPか確認
 - `docker compose -f examples/docker-compose.smartphone.yml logs mediamtx` を確認
 - WSL内の独立Docker Engineの場合は、UDP 8189もLANから到達できるネットワーク構成か確認
 
