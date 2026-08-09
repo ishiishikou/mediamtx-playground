@@ -67,32 +67,101 @@ function Invoke-WslRepositoryCommand {
     return $exitCode
 }
 
-function Get-PreferredLanIPv4 {
+function Test-PrivateIPv4 {
+    param([Parameter(Mandatory = $true)][string]$Address)
+
+    $parsed = $null
+    if (-not [System.Net.IPAddress]::TryParse($Address, [ref]$parsed) -or
+        $parsed.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
+        return $false
+    }
+
+    $bytes = $parsed.GetAddressBytes()
+    if ($bytes[0] -eq 10) {
+        return $true
+    }
+    if ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) {
+        return $true
+    }
+    if ($bytes[0] -eq 192 -and $bytes[1] -eq 168) {
+        return $true
+    }
+    return $false
+}
+
+function Get-UsableIPv4Candidates {
     $configs = Get-NetIPConfiguration |
         Where-Object {
             $_.NetAdapter.Status -eq 'Up' -and
-            $null -ne $_.IPv4DefaultGateway -and
             $null -ne $_.IPv4Address -and
             $_.InterfaceAlias -notmatch 'vEthernet|WSL|Docker|Loopback|Tailscale|ZeroTier'
         }
 
     $candidates = foreach ($config in $configs) {
-        $metric = (Get-NetIPInterface -InterfaceIndex $config.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).InterfaceMetric
+        $interface = Get-NetIPInterface -InterfaceIndex $config.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+        $metric = if ($null -eq $interface) { 99999 } else { [int]$interface.InterfaceMetric }
+        $description = [string]$config.NetAdapter.InterfaceDescription
         foreach ($address in $config.IPv4Address) {
-            if ($address.IPAddress -notmatch '^127\.' -and $address.IPAddress -notmatch '^169\.254\.') {
-                [pscustomobject]@{
-                    Address = $address.IPAddress
-                    Metric = if ($null -eq $metric) { 99999 } else { [int]$metric }
-                }
+            if ($address.IPAddress -match '^127\.' -or $address.IPAddress -match '^169\.254\.') {
+                continue
+            }
+
+            [pscustomobject]@{
+                Address = $address.IPAddress
+                Metric = $metric
+                HasDefaultGateway = $null -ne $config.IPv4DefaultGateway
+                InterfaceAlias = [string]$config.InterfaceAlias
+                InterfaceDescription = $description
+                IsPrivate = Test-PrivateIPv4 -Address $address.IPAddress
+                LooksLikeHotspot = (
+                    $description -match 'Wi-Fi Direct|Hosted Network|Mobile Hotspot' -or
+                    $config.InterfaceAlias -match 'Local Area Connection\*|ローカル エリア接続\*'
+                )
             }
         }
     }
 
-    $selected = $candidates | Sort-Object Metric | Select-Object -First 1
-    if ($null -eq $selected) {
-        throw 'デフォルトゲートウェイを持つLAN IPv4アドレスを検出できませんでした。-LanIp で明示してください。'
+    return @($candidates)
+}
+
+function Get-PreferredLanIPv4 {
+    $candidates = Get-UsableIPv4Candidates
+
+    $selected = $candidates |
+        Where-Object { $_.HasDefaultGateway } |
+        Sort-Object Metric |
+        Select-Object -First 1
+    if ($null -ne $selected) {
+        return $selected.Address
     }
-    return $selected.Address
+
+    # PCがインターネット未接続でWindows Mobile Hotspotだけを提供している場合、
+    # hotspot側NICにはデフォルトゲートウェイが付かないため、専用のフォールバックを使う。
+    $hotspotCandidates = @($candidates |
+        Where-Object { $_.IsPrivate -and $_.LooksLikeHotspot } |
+        Sort-Object Metric)
+    if ($hotspotCandidates.Count -eq 1) {
+        return $hotspotCandidates[0].Address
+    }
+    if ($hotspotCandidates.Count -gt 1) {
+        $addresses = ($hotspotCandidates | ForEach-Object { "$($_.InterfaceAlias)=$($_.Address)" }) -join ', '
+        throw "モバイルホットスポット候補が複数あります: $addresses。-LanIp で使用するIPv4アドレスを明示してください。"
+    }
+
+    # OSやドライバーによってhotspot用NIC名が異なる場合に備え、
+    # private IPv4が1つだけなら安全にフォールバックする。複数なら推測しない。
+    $privateCandidates = @($candidates |
+        Where-Object { $_.IsPrivate } |
+        Sort-Object Metric)
+    if ($privateCandidates.Count -eq 1) {
+        return $privateCandidates[0].Address
+    }
+    if ($privateCandidates.Count -gt 1) {
+        $addresses = ($privateCandidates | ForEach-Object { "$($_.InterfaceAlias)=$($_.Address)" }) -join ', '
+        throw "デフォルトゲートウェイのないプライベートIPv4候補が複数あります: $addresses。-LanIp で使用するIPv4アドレスを明示してください。"
+    }
+
+    throw 'LANまたはモバイルホットスポットのIPv4アドレスを検出できませんでした。ホットスポットを有効化するか、-LanIp で明示してください。'
 }
 
 function Assert-IPv4Address {
