@@ -113,8 +113,11 @@ Prometheus / cAdvisorを起動しない場合でも配信試験は実行でき�
 
 Windows + WSL2 + Docker DesktopのPCと同一LAN上のスマートフォンから、実カメラ映像をHTTPS/WebRTCでMediaMTXへpublishできます。証明書はDocker内のmkcertで生成し、Windows Firewallは検証中だけLocalSubnetへ開放します。
 
+通常LANに加えて、構築済みPCをインターネットから切断し、Windowsのモバイルホットスポットへスマートフォンを直接接続する完全オフライン構成にも対応しています。外部STUN/TURNは使用せず、PCとスマートフォン間のローカル通信だけでWebRTC publishを確認できます。
+
 - [スマートフォン実機からWebRTC publishする手順](docs/smartphone-webrtc.md)
 - 起動スクリプト: `scripts/smartphone/start.ps1`
+- オフライン事前準備: `scripts/smartphone/prepare-offline.ps1`
 - 停止スクリプト: `scripts/smartphone/stop.ps1`
 - 完全削除: `scripts/smartphone/cleanup.ps1`
 
@@ -125,7 +128,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass \
   -File "$(wslpath -w scripts/smartphone/start.ps1)"
 ```
 
-必要に応じてUACで管理者権限へ昇格した後、LAN IP検出、検証用CA/サーバー証明書生成、Firewall設定、MediaMTX起動、Windows LAN IP経由のTCP疎通確認まで自動で行います。終了は起動したPowerShellでEnterまたは `Ctrl+C`。Compose stackとFirewallルールは `finally` で自動削除し、CAは短期検証中の再利用のため `tmp/smartphone/` に残します。
+完全オフラインで利用する場合は、インターネット接続中に一度だけ必要イメージを取得・buildします。
+
+```bash
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File "$(wslpath -w scripts/smartphone/prepare-offline.ps1)"
+```
+
+必要に応じてUACで管理者権限へ昇格した後、LAN IP検出、検証用CA/サーバー証明書生成、Firewall設定、MediaMTX起動、Windows LAN IP経由のTCP疎通確認まで自動で行います。通常LANのデフォルトルートがない場合は、モバイルホットスポット側のプライベートIPv4をフォールバック検出します。候補が複数ある場合は自動選択せず `-LanIp` の指定を要求します。終了は起動したPowerShellでEnterまたは `Ctrl+C`。Compose stackとFirewallルールは `finally` で自動削除し、CAは短期検証中の再利用のため `tmp/smartphone/` に残します。
 
 PCへmkcertやOpenSSLを追加インストールする必要はありません。iPhone/Android側では初回のみ `rootCA.pem` のインストールと信頼設定が必要です。
 
