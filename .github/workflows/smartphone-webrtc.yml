@@ -97,7 +97,7 @@ jobs:
         run: |
           grep -q '^name: mediamtx-smartphone$' examples/docker-compose.smartphone.yml
           docker compose -f examples/docker-compose.smartphone.yml config > /tmp/smartphone-compose.yml
-          grep -q 'create_host_path: false' /tmp/smartphone-compose.yml
+          test "$(grep -c 'create_host_path: false' examples/docker-compose.smartphone.yml)" -ge 7
 
       - name: Build certificate generator
         run: docker compose -f examples/docker-compose.smartphone.yml build cert-generator
