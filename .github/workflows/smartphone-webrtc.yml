@@ -54,6 +54,7 @@ jobs:
         shell: bash
         run: |
           sh -n scripts/smartphone/generate-assets.sh
+          sh -n scripts/smartphone/ensure-workspace.sh
           pwsh -NoProfile -Command '
             $failed = $false
             Get-ChildItem scripts/smartphone/*.ps1 | ForEach-Object {
@@ -69,16 +70,34 @@ jobs:
             if ($failed) { exit 1 }
           '
 
+      - name: Validate workspace ownership guard
+        shell: bash
+        run: |
+          workspace="$(mktemp -d)"
+          rm -rf "$workspace"
+          sh scripts/smartphone/ensure-workspace.sh "$workspace"
+          test "$(stat -c '%u' "$workspace")" = "$(id -u)"
+
+          sudo chown root:root "$workspace"
+          if sh scripts/smartphone/ensure-workspace.sh "$workspace"; then
+            echo "root-owned workspace must be rejected"
+            exit 1
+          fi
+
+          sudo chown -R "$(id -u):$(id -g)" "$workspace"
+          rm -rf "$workspace"
+
       - name: Prepare output directories and uid
         run: |
-          mkdir -p tmp/smartphone/certs/ca tmp/smartphone/public tmp/smartphone/generated
+          sh scripts/smartphone/ensure-workspace.sh tmp/smartphone
           echo "SMARTPHONE_UID=$(id -u)" >> "$GITHUB_ENV"
           echo "SMARTPHONE_GID=$(id -g)" >> "$GITHUB_ENV"
 
       - name: Validate compose configuration
         run: |
           grep -q '^name: mediamtx-smartphone$' examples/docker-compose.smartphone.yml
-          docker compose -f examples/docker-compose.smartphone.yml config
+          docker compose -f examples/docker-compose.smartphone.yml config > /tmp/smartphone-compose.yml
+          grep -q 'create_host_path: false' /tmp/smartphone-compose.yml
 
       - name: Build certificate generator
         run: docker compose -f examples/docker-compose.smartphone.yml build cert-generator
@@ -107,6 +126,19 @@ jobs:
           cmp tmp/smartphone/certs/ca/rootCA.pem tmp/smartphone/public/rootCA.pem
           grep -q '192.0.2.10' tmp/smartphone/generated/mediamtx.yml
           openssl x509 -in tmp/smartphone/certs/server.crt -noout -text | grep -q 'IP Address:192.0.2.10'
+
+          for path in \
+            tmp/smartphone/certs/ca/rootCA.pem \
+            tmp/smartphone/certs/ca/rootCA-key.pem \
+            tmp/smartphone/certs/server.crt \
+            tmp/smartphone/certs/server.key \
+            tmp/smartphone/public/rootCA.pem \
+            tmp/smartphone/public/publish-qr.png \
+            tmp/smartphone/generated/mediamtx.yml
+          do
+            test "$(stat -c '%u' "$path")" = "$(id -u)"
+          done
+
           sha256sum tmp/smartphone/certs/ca/rootCA.pem > /tmp/root-ca.sha256
 
       - name: Verify CA reuse
