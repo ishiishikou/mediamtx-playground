@@ -56,7 +56,7 @@ WebRTCのシグナリングとメディア通信はPCとスマートフォンの
 
 WSL内へ独立してDocker Engineをインストールしている場合は注意する。WSL2の既定ネットワークはNATであり、WindowsからWSLへのlocalhost forwardingと、LAN上の別端末からWSLへ直接到達できることは同義ではない。Windows 11でWSL mirrored networkingを利用するなど、LAN到達性を別途確保する必要がある場合がある。
 
-`start.ps1` はMediaMTX起動後、WindowsのLAN IPに対して8000/TCPと8889/TCPの疎通を確認する。ここで失敗した場合は、コンテナとFirewallルールを自動で戻してエラー終了する。
+`start.ps1` はMediaMTX起動後、Windows localhostの8000/TCPと8889/TCPを最大10回retryして必須の起動確認を行う。続けてWindows自身からLAN IPへの8000/TCPと8889/TCPも確認するが、WSLのnetworking modeによっては自己接続だけが失敗し、同一LANのスマートフォンからは到達できる場合があるため、この確認は警告扱いとする。最終的なLAN到達性はスマートフォンからCA取得URLとpublish URLを開いて確認する。
 
 `mkcert` は `docker/smartphone-cert/Dockerfile` で固定したv1.4.4をコンテナ内へ取得する。WindowsとWSLの証明書ストアへCAをインストールしない。
 
@@ -164,14 +164,14 @@ Windowsの「設定」からモバイルホットスポットを有効にし、�
 
 1. WSL内のDocker / Docker Compose利用可否を確認
 2. 前回異常終了時に残った同名FirewallルールとCompose stackを掃除
-3. `cert-generator` をbuild
-4. WSLユーザーのUID/GIDで `tmp/smartphone/` の検証用CAを準備し、LAN IP向けサーバー証明書を生成
+3. WSL通常ユーザーで `tmp/smartphone/` を準備し、root所有・書込不可のパスが残っていないことを確認してから `cert-generator` をbuild
+4. WSLユーザーのUID/GIDで検証用CAを準備し、LAN IP向けサーバー証明書を生成
 5. Windows FirewallをLocalSubnet限定で一時開放
    - TCP 8000: CA証明書取得
    - TCP 8889: HTTPS WebRTC signaling / WHIP
    - UDP 8189: WebRTC media
 6. MediaMTXとCA配信サーバーを起動
-7. WindowsのLAN IP:8000/8889へTCP疎通を確認
+7. Windows localhost:8000/8889をretry付きで必須確認し、LAN IP:8000/8889への自己疎通は警告用に確認
 8. iPhone/Androidから開くURLを表示
 9. PowerShellが終了すると `finally` でCompose停止とFirewallルール削除
 
@@ -297,6 +297,18 @@ iPhoneにインストールしたCAプロファイルはiPhone側で手動削除
 
 ## トラブルシュート
 
+詳細な起動時トラブルは [スマートフォンWebRTC起動トラブルシュート](smartphone-webrtc-troubleshooting.md) も参照する。
+
+### `tmp/smartphone` がroot所有になっている
+
+正規の `start.ps1` はWSLの通常ユーザーでworkspaceを作成し、そのUID/GIDで証明書生成コンテナを実行する。現在はCompose側も `create_host_path: false` とし、bind元がない状態でDockerが `tmp/smartphone` 配下を自動作成しない。
+
+過去の直接 `docker compose up/run` や `sudo docker compose ...` 等でroot所有パスが残っている場合、`start.ps1` は証明書生成前に検出して停止する。次で所有者を戻して再実行する。
+
+```bash
+sudo chown -R "$(id -u):$(id -g)" tmp/smartphone
+```
+
 ### LAN IPの自動検出が違う
 
 VPNや複数NICがある場合は `-LanIp` を指定する。
@@ -307,12 +319,15 @@ VPNや複数NICがある場合は `-LanIp` を指定する。
 
 インターネット接続中に `prepare-offline.ps1` を実行していない、または準備後にDockerイメージを削除した可能性がある。PCを再度オンラインにして `prepare-offline.ps1` を実行する。
 
-### start.ps1のTCP疎通確認で失敗する
+### LAN IPへのTCP自己疎通で警告になる
+
+`start.ps1` は `127.0.0.1:8000` と `127.0.0.1:8889` を必須の起動確認に使う。Windows自身からPCのLAN IPへの8000/8889が失敗した場合は警告を表示するが、この結果だけでは停止しない。
 
 - Docker Desktopを利用する場合は、Docker Desktopが起動し、対象WSL distroでWSL integrationが有効か確認する
 - WSL内の独立Docker Engineを利用する場合は、WSLのnetworking modeとLANからWSLへの到達性を確認する
 - Windows 11でmirrored networkingを使う場合は、WSL側のHyper-V firewall設定も確認する
 - モバイルホットスポット構成では `-LanIp` がスマートフォンと同一サブネットのPC側IPv4か確認する
+- 最終判断はスマートフォンから `http://<PC-LAN-IP>:8000/rootCA.pem` と `https://<PC-LAN-IP>:8889/live/iphone-001/publish` を開いて行う
 
 ### iPhoneからCA取得URLへ接続できない
 
