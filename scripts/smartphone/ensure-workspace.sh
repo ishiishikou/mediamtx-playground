@@ -2,6 +2,16 @@
 set -eu
 
 WORKSPACE_ROOT="${1:-tmp/smartphone}"
+CURRENT_UID="$(id -u)"
+CURRENT_GID="$(id -g)"
+
+if [ "${CURRENT_UID}" = "0" ]; then
+  cat >&2 <<'EOF'
+WSLのrootユーザーではスマートフォン検証workspaceを作成しません。
+通常ユーザーをWSLのデフォルトユーザーとしてstart.ps1を再実行してください。
+EOF
+  exit 73
+fi
 
 print_repair_hint() {
   cat >&2 <<EOF
@@ -12,7 +22,7 @@ print_repair_hint() {
 過去にdocker composeを直接実行した場合などに、Dockerがbind元をrootで作成した可能性があります。
 
 所有者を現在のWSLユーザーへ戻してから再実行してください:
-  sudo chown -R \"\$(id -u):\$(id -g)\" "${WORKSPACE_ROOT}"
+  sudo chown -R \"${CURRENT_UID}:${CURRENT_GID}\" "${WORKSPACE_ROOT}"
 EOF
 }
 
@@ -51,4 +61,4 @@ do
 done
 
 printf 'smartphone workspace ready: %s (uid=%s gid=%s)\n' \
-  "${WORKSPACE_ROOT}" "$(id -u)" "$(id -g)"
+  "${WORKSPACE_ROOT}" "${CURRENT_UID}" "${CURRENT_GID}"
