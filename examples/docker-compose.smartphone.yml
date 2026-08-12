@@ -10,9 +10,21 @@ services:
     environment:
       SMARTPHONE_LAN_IP: "${SMARTPHONE_LAN_IP:-127.0.0.1}"
     volumes:
-      - ../tmp/smartphone/certs:/work/certs
-      - ../tmp/smartphone/public:/work/public
-      - ../tmp/smartphone/generated:/work/generated
+      - type: bind
+        source: ../tmp/smartphone/certs
+        target: /work/certs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../tmp/smartphone/public
+        target: /work/public
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../tmp/smartphone/generated
+        target: /work/generated
+        bind:
+          create_host_path: false
       - ./mediamtx.smartphone.example.yml:/templates/mediamtx.smartphone.example.yml:ro
 
   mediamtx:
@@ -20,9 +32,24 @@ services:
     container_name: mediamtx-smartphone
     restart: "no"
     volumes:
-      - ../tmp/smartphone/generated/mediamtx.yml:/mediamtx.yml:ro
-      - ../tmp/smartphone/certs/server.crt:/certs/server.crt:ro
-      - ../tmp/smartphone/certs/server.key:/certs/server.key:ro
+      - type: bind
+        source: ../tmp/smartphone/generated/mediamtx.yml
+        target: /mediamtx.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../tmp/smartphone/certs/server.crt
+        target: /certs/server.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../tmp/smartphone/certs/server.key
+        target: /certs/server.key
+        read_only: true
+        bind:
+          create_host_path: false
       - ../scripts/poc/hooks:/hooks:ro
     ports:
       - "127.0.0.1:8554:8554"
@@ -38,6 +65,11 @@ services:
     restart: "no"
     command: ["httpd", "-f", "-p", "80", "-h", "/public"]
     volumes:
-      - ../tmp/smartphone/public:/public:ro
+      - type: bind
+        source: ../tmp/smartphone/public
+        target: /public
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "8000:80"
