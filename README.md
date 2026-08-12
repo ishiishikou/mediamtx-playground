@@ -106,7 +106,7 @@ docker compose -f examples/docker-compose.performance.yml run --rm \
 docker compose -f examples/docker-compose.performance.yml --profile monitoring down -v
 ```
 
-MediaMTXコンテナのCPU・メモリ・通信量は`PERF_RESOURCE_BACKEND=auto`で取得します。既定ではcAdvisorメトリクスを優先し、取得できない場合はDocker Engine statsへ自動フォールバックします。Docker DesktopなどcAdvisorがコンテナを認識できない環境でも、Docker socketを利用できればリソース列を取得できます。
+MediaMTXコンテナのCPU・メモリ・通信量は`PERF_RESOURCE_BACKEND=auto`で取得します。既定ではcAdvisorメトリクスを優先し、取得できない場合はDocker Engine statsへ自動フォールバックします。Docker backendではCPU・メモリを主要なリソース指標として扱い、ネットワーク通信量は実行環境によって実配信トラフィックを正確に反映しない場合があるため補助指標として扱います。
 
 `performance-runner`はDocker Engine stats取得のため`/var/run/docker.sock`をmountします。Docker socketは強い権限を持つため、この構成は信頼できるローカルPoC・性能測定用途に限定してください。詳細はリソース採取バックエンドの手順書を参照してください。
 
