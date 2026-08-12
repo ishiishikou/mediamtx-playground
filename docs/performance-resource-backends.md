@@ -59,6 +59,8 @@ mediamtx_network_transmit_bps
 
 Docker方式のネットワーク速度は連続サンプルの差分から計算するため、最初の1行はRX/TXが空欄になる。
 
+また、Docker Desktopや`network_mode: service:...`のようにnetwork namespaceを共有する構成では、Docker Engine statsのNET I/Oが実際の配信トラフィックを正確に反映しない場合がある。Docker backendではCPU・メモリを主要なリソース指標として扱い、RX/TXはボトルネック分析の補助指標として扱う。ネットワーク帯域を主要な判断材料にする場合は、cAdvisorやホスト側のNIC監視など別の観測手段でも確認する。
+
 ## 実行例
 
 ### 自動選択
