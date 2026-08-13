@@ -47,8 +47,8 @@ try {
         Remove-SmartphoneFirewallRules
     }
 
-    Write-Host '[3/7] mkcertコンテナを準備します。'
-    Invoke-WslRepositoryCommand -Context $context -Command 'mkdir -p tmp/smartphone/certs/ca tmp/smartphone/public tmp/smartphone/generated' | Out-Null
+    Write-Host '[3/7] 検証用workspaceとmkcertコンテナを準備します。'
+    Invoke-WslRepositoryCommand -Context $context -Command 'sh scripts/smartphone/ensure-workspace.sh tmp/smartphone' | Out-Null
     Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile build cert-generator" | Out-Null
 
     Write-Host "[4/7] 検証用CAを準備し、${LanIp} 向けサーバー証明書を生成します。"
@@ -68,16 +68,41 @@ try {
     Invoke-WslRepositoryCommand -Context $context -Command "${composeEnv}docker compose -f $composeFile up -d mediamtx cert-server" | Out-Null
     $composeStarted = $true
 
-    Write-Host '[7/7] WindowsのLAN IP経由でTCP疎通を確認します。'
-    Start-Sleep -Seconds 1
-    $caReady = Test-NetConnection -ComputerName $LanIp -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue
-    $httpsReady = Test-NetConnection -ComputerName $LanIp -Port 8889 -InformationLevel Quiet -WarningAction SilentlyContinue
-    if (-not $caReady -or -not $httpsReady) {
+    Write-Host '[7/7] 公開ポートの起動状態を確認します。'
+    $localCaReady = $false
+    $localHttpsReady = $false
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        $localCaReady = Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue
+        $localHttpsReady = Test-NetConnection -ComputerName 127.0.0.1 -Port 8889 -InformationLevel Quiet -WarningAction SilentlyContinue
+        if ($localCaReady -and $localHttpsReady) {
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    if (-not $localCaReady -or -not $localHttpsReady) {
         throw @"
-WindowsのLAN IP ($LanIp) からDocker公開ポートへ到達できませんでした。
-Docker DesktopのWSL 2 integrationを利用している場合はDocker Desktopが起動しているか確認してください。
-WSL内に独立してDocker Engineを入れている場合、既定のWSL NATではLANからWSLへ直接到達できないため、WSL mirrored networking等の追加設定が必要です。
+Windows localhostからDocker公開ポートへ到達できませんでした。
+  127.0.0.1:8000 = $localCaReady
+  127.0.0.1:8889 = $localHttpsReady
+Docker/WSL側のコンテナ起動状態とport publishを確認してください。
 Firewallとコンテナはfinallyで自動的に元へ戻します。
+"@
+    }
+
+    $lanCaReady = Test-NetConnection -ComputerName $LanIp -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue
+    $lanHttpsReady = Test-NetConnection -ComputerName $LanIp -Port 8889 -InformationLevel Quiet -WarningAction SilentlyContinue
+    if ($lanCaReady -and $lanHttpsReady) {
+        Write-Host "Windows LAN IP自己疎通: ${LanIp}:8000 / :8889 OK" -ForegroundColor Green
+    }
+    else {
+        Write-Warning @"
+Windows自身からLAN IP ($LanIp) へのTCP自己疎通は確認できませんでした。
+  ${LanIp}:8000 = $lanCaReady
+  ${LanIp}:8889 = $lanHttpsReady
+
+WSL mirrored networking等では、Windows自身からLAN IPへの接続が失敗しても、同一LANのスマートフォンから到達できる場合があります。
+この結果だけでは環境を停止しません。下に表示するCA取得URLとWebRTC publish URLをスマートフォンから開いて到達性を確認してください。
 "@
     }
 
