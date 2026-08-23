@@ -7,12 +7,16 @@ Windows Chrome
   -> chrome://inspect
   -> CDP 127.0.0.1:9222
   -> WSL2
-  -> Docker
+  -> Docker published port 9222
+  -> socat relay 0.0.0.0:9223
+  -> Chromium CDP 127.0.0.1:9222
   -> Playwright
   -> headless Chromium
 ```
 
 MediaMTX, WebRTC, DNS, and external web sites are not used.
+
+Headless Chromium in this image binds the CDP endpoint to container loopback (`127.0.0.1:9222`). Docker port publishing cannot directly reach that loopback listener, so this example relays `0.0.0.0:9223` to `127.0.0.1:9222` with `socat`.
 
 ## Run from WSL
 
@@ -21,11 +25,20 @@ cd examples/cdp-smoke
 
 docker build -t cdp-smoke .
 docker run --rm --init --ipc=host \
-  -p 127.0.0.1:9222:9222 \
+  -p 127.0.0.1:9222:9223 \
   cdp-smoke
 ```
 
 The container logs should show an incrementing counter once per second.
+
+## Verify inside the container if needed
+
+```bash
+docker exec <container> curl -sS http://127.0.0.1:9222/json/version
+docker exec <container> curl -sS http://127.0.0.1:9223/json/version
+```
+
+Both should return the Chromium version JSON. The first accesses Chromium directly; the second accesses it through the `socat` relay.
 
 ## Verify from Windows PowerShell
 
