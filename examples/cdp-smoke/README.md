@@ -18,6 +18,20 @@ MediaMTX, WebRTC, DNS, and external web sites are not used.
 
 Headless Chromium in this image binds the CDP endpoint to container loopback (`127.0.0.1:9222`). Docker port publishing cannot directly reach that loopback listener, so this example relays `0.0.0.0:9223` to `127.0.0.1:9222` with `socat`.
 
+## Device emulation
+
+The default device is **Pixel 10**.
+
+The smoke test uses the Chromium DevTools Pixel 10 profile values:
+
+- viewport: `412 x 924` CSS px
+- device pixel ratio: `2.625`
+- mobile rendering: enabled
+- touch: enabled
+- user agent: Android 16 / Pixel 10
+
+Set `DEVICE=desktop` to disable mobile emulation.
+
 ## Run from WSL
 
 ```bash
@@ -29,7 +43,25 @@ docker run --rm --init --ipc=host \
   cdp-smoke
 ```
 
-The container logs should show an incrementing counter once per second.
+Explicit Pixel 10 example:
+
+```bash
+docker run --rm --init --ipc=host \
+  -e DEVICE="Pixel 10" \
+  -p 127.0.0.1:9222:9223 \
+  cdp-smoke
+```
+
+Desktop example:
+
+```bash
+docker run --rm --init --ipc=host \
+  -e DEVICE=desktop \
+  -p 127.0.0.1:9222:9223 \
+  cdp-smoke
+```
+
+The container logs should show the selected device, viewport, DPR, and an incrementing counter once per second.
 
 ## Verify inside the container if needed
 
@@ -54,15 +86,18 @@ Invoke-RestMethod http://127.0.0.1:9222/json/list
 1. Open `chrome://inspect/#devices` on Windows.
 2. Open `Configure...`.
 3. Add `127.0.0.1:9222`.
-4. Confirm that `CDP Smoke Test` appears under Remote Target.
-5. Click `inspect`.
+4. If the target is not listed, get `devtoolsFrontendUrl` from `/json/list` and open it directly.
+5. Confirm that the screencast shows the Pixel 10-sized page.
 6. In DevTools Console, run:
 
 ```javascript
-document.querySelector('#count').textContent
+window.innerWidth
+window.innerHeight
+window.devicePixelRatio
+navigator.userAgent
 ```
 
-Run it again a few seconds later. The value should have increased because Playwright clicks the button once per second inside the headless Chromium instance.
+For Pixel 10, the expected viewport is `412 x 924` with DPR `2.625`.
 
 ## Remove
 
